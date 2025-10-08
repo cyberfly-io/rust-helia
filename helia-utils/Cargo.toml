@@ -1,0 +1,53 @@
+[package]
+name = "helia-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Shared utilities and implementations for Helia"
+
+[dependencies]
+# Interface dependencies
+helia-interface = { path = "../helia-interface" }
+
+# Core async and future utilities
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+multihash.workspace = true
+multiaddr.workspace = true
+
+# libp2p
+libp2p.workspace = true
+
+# Data structures
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Storage
+sled.workspace = true
+
+# Logging and DNS
+tracing.workspace = true
+tracing-subscriber.workspace = true
+trust-dns-resolver.workspace = true
+
+# Utilities
+uuid.workspace = true
+dashmap.workspace = true
+once_cell.workspace = true
+
+# Streams
+async-stream.workspace = true
+pin-utils.workspace = true

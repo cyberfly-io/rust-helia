@@ -1,0 +1,56 @@
+[package]
+name = "helia"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "An implementation of IPFS in Rust"
+
+[dependencies]
+# Helia crates
+helia-interface = { path = "../helia-interface" }
+helia-utils = { path = "../helia-utils" }
+
+# Core async and future utilities
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+multihash.workspace = true
+multiaddr.workspace = true
+
+# libp2p
+libp2p.workspace = true
+libp2p-kad.workspace = true
+libp2p-noise.workspace = true
+libp2p-yamux.workspace = true
+libp2p-tcp.workspace = true
+libp2p-websocket.workspace = true
+libp2p-mdns.workspace = true
+libp2p-dcutr.workspace = true
+libp2p-autonat.workspace = true
+libp2p-identify.workspace = true
+libp2p-ping.workspace = true
+
+# Storage
+sled.workspace = true
+
+# Utilities
+bytes.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# DNS
+trust-dns-resolver.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true

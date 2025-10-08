@@ -1,0 +1,27 @@
+[package]
+name = "helia-block-brokers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Block broker abstractions for retrieving content from various sources"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+helia-bitswap = { path = "../helia-bitswap" }
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+futures = "0.3"
+libp2p = { version = "0.53", features = ["request-response", "kad"] }
+cid = "0.11"
+bytes = "1.0"
+thiserror = "1.0"
+url = "2.0"
+reqwest = { version = "0.12", features = ["json"] }
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4"] }

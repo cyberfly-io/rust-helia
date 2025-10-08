@@ -1,0 +1,32 @@
+[package]
+name = "helia-mfs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Mutable File System (MFS) implementation for Helia IPFS nodes"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+helia-unixfs = { path = "../helia-unixfs" }
+
+# Core async runtime and utilities
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+
+# Utilities
+bytes.workspace = true
+
+[dev-dependencies]
+helia = { path = "../helia" }
+tokio.workspace = true

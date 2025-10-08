@@ -1,0 +1,38 @@
+[package]
+name = "helia-json"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "JSON support for Helia IPFS nodes"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+
+# Core async runtime and utilities  
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+multihash.workspace = true
+
+# Utilities
+bytes.workspace = true
+
+[dev-dependencies]
+helia = { path = "../helia" }
+tokio.workspace = true
+futures.workspace = true

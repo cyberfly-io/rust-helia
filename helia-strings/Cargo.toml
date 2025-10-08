@@ -1,0 +1,34 @@
+[package]
+name = "helia-strings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Simple string storage and retrieval for Helia IPFS nodes"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+
+# Core async runtime and utilities
+async-trait.workspace = true
+tokio.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+multihash.workspace = true
+
+# Cryptography
+sha2.workspace = true
+
+# Utilities
+bytes.workspace = true
+
+[dev-dependencies]
+helia = { path = "../helia" }
+tokio.workspace = true

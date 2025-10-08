@@ -1,0 +1,17 @@
+[package]
+name = "helia-interop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Interoperability testing and compatibility utilities for Helia"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+bytes.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

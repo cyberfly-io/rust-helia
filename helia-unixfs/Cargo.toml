@@ -1,0 +1,45 @@
+[package]
+name = "helia-unixfs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "UnixFS filesystem implementation for Helia"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+
+# Core async and future utilities
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+multihash.workspace = true
+
+# Data structures and serialization
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# UnixFS and protobuf
+prost = "0.12"
+prost-types = "0.12"
+
+# File system operations
+tokio-stream = "0.1"
+
+# Utilities
+uuid.workspace = true
+
+[dev-dependencies]
+tokio-test = "0.4"
+helia = { path = "../helia" }

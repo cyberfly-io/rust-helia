@@ -1,0 +1,27 @@
+[package]
+name = "helia-bitswap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Bitswap protocol implementation for content exchange between IPFS nodes"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+futures = "0.3"
+libp2p = { version = "0.53", features = ["request-response", "kad"] }
+cid = "0.11"
+bytes = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+rand = "0.8"
+prost = "0.13"
+unsigned-varint = "0.8"
+async-stream = "0.3"

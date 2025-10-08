@@ -1,0 +1,42 @@
+[package]
+name = "helia-interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "The Helia API interface definitions and traits"
+
+[dependencies]
+# Core async and future utilities
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid = { workspace = true, features = ["serde-codec"] }
+multihash.workspace = true
+multiaddr.workspace = true
+
+# libp2p
+libp2p.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utilities
+bytes.workspace = true
+tracing.workspace = true
+
+# DNS
+trust-dns-resolver.workspace = true
+
+# Progress events
+async-stream.workspace = true

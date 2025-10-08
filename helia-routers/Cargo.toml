@@ -1,0 +1,28 @@
+[package]
+name = "helia-routers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Routing abstractions for Helia (content and peer routing)"
+
+[dependencies]
+helia-interface = { path = "../helia-interface" }
+
+# Core async runtime
+async-trait.workspace = true
+tokio.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# IPFS and multiformats
+cid.workspace = true
+libp2p.workspace = true
+
+[dev-dependencies]
+helia = { path = "../helia" }
+multihash.workspace = true
