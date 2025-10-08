@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "Routing abstractions for Helia (content and peer routing)"
 
 [dependencies]
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async runtime
 async-trait.workspace = true
@@ -24,5 +24,5 @@ cid.workspace = true
 libp2p.workspace = true
 
 [dev-dependencies]
-helia = { path = "../helia" }
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
 multihash.workspace = true

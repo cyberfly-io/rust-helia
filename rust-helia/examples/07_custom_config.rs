@@ -6,7 +6,7 @@
 //! - Custom libp2p configuration
 //! - Datastore and blockstore configuration
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_utils::{
     HeliaConfig, BlockstoreConfig, DatastoreConfig, LoggerConfig,
     create_swarm_with_keypair

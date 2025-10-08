@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "DNSLink resolution for Helia"
 
 [dependencies]
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async runtime
 async-trait.workspace = true
@@ -26,5 +26,5 @@ cid.workspace = true
 trust-dns-resolver = "0.23"
 
 [dev-dependencies]
-helia = { path = "../helia" }
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
 multihash.workspace = true

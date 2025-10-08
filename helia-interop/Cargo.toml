@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "Interoperability testing and compatibility utilities for Helia"
 
 [dependencies]
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 bytes.workspace = true
 
 [dev-dependencies]

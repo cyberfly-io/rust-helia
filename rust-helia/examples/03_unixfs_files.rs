@@ -8,7 +8,7 @@
 //! - Listing directory contents
 //! - Getting file statistics
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_unixfs::{UnixFS, UnixFSInterface, AddBytesOptions};
 use bytes::Bytes;
 use std::sync::Arc;

@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "DAG-JSON support for Helia"
 
 [dependencies]
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -34,4 +34,4 @@ bytes.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"
-helia = { path = "../helia" }
+rust-helia = { version = "0.1.2", path = "../rust-helia" }

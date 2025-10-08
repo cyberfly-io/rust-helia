@@ -1,5 +1,5 @@
 [package]
-name = "helia"
+name = "rust-helia"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,8 +11,8 @@ description = "An implementation of IPFS in Rust"
 
 [dependencies]
 # Helia crates
-helia-interface = { path = "../helia-interface" }
-helia-utils = { path = "../helia-utils" }
+helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-utils = { version = "0.1.2", path = "../helia-utils" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -54,8 +54,8 @@ trust-dns-resolver.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
-helia-unixfs = { path = "../helia-unixfs" }
-helia-dag-cbor = { path = "../helia-dag-cbor" }
-helia-dag-json = { path = "../helia-dag-json" }
-helia-car = { path = "../helia-car" }
+helia-unixfs = { version = "0.1.2", path = "../helia-unixfs" }
+helia-dag-cbor = { version = "0.1.2", path = "../helia-dag-cbor" }
+helia-dag-json = { version = "0.1.2", path = "../helia-dag-json" }
+helia-car = { version = "0.1.2", path = "../helia-car" }
 serde = { workspace = true }

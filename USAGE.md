@@ -41,7 +41,7 @@ serde = { version = "1.0", features = ["derive"] }
 ### Basic Setup
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -93,7 +93,7 @@ println!("Codec: {:?}", cid.codec());
 ### Default Configuration
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Custom Configuration
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_utils::{HeliaConfig, BlockstoreConfig, DatastoreConfig};
 use std::path::PathBuf;
 
@@ -147,7 +147,7 @@ The blockstore is the low-level storage layer for raw blocks of data.
 ### Storing Blocks
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 use bytes::Bytes;
 
@@ -169,7 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Retrieving Blocks
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 use cid::Cid;
 use std::str::FromStr;
@@ -191,7 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Checking Block Existence
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 use cid::Cid;
 
@@ -215,7 +215,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Deleting Blocks
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 
 #[tokio::main]
@@ -233,7 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Batch Operations
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{Blocks, InputPair};
 use bytes::Bytes;
 
@@ -271,7 +271,7 @@ UnixFS provides file and directory operations compatible with IPFS.
 ### Adding Files
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
 use std::sync::Arc;
@@ -398,7 +398,7 @@ Work with structured data using DAG codecs.
 DAG-CBOR is ideal for encoding structured data with links to other content.
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -441,7 +441,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 DAG-JSON is similar to DAG-CBOR but uses JSON encoding.
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_dag_json::{DagJson, DagJsonInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -474,7 +474,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 For simple JSON without IPLD links:
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_json::{Json, JsonInterface};
 use serde_json::json;
 use std::sync::Arc;
@@ -506,7 +506,7 @@ CAR (Content Addressable aRchive) files package IPLD data for transport and stor
 ### Exporting to CAR
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_car::export_car;
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use std::path::Path;
@@ -535,7 +535,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Importing from CAR
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_car::import_car;
 use std::path::Path;
 use std::sync::Arc;
@@ -564,7 +564,7 @@ Pinning protects content from garbage collection.
 ### Pin Content
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Pins;
 
 #[tokio::main]
@@ -582,7 +582,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Check if Pinned
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Pins;
 
 #[tokio::main]
@@ -599,7 +599,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Unpin Content
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Pins;
 
 #[tokio::main]
@@ -616,7 +616,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### List All Pins
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Pins;
 use futures::StreamExt;
 
@@ -677,7 +677,7 @@ let swarm = create_swarm_with_keypair(keypair).await?;
 Helia uses a comprehensive error type system:
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{HeliaError, HeliaErrorType};
 
 #[tokio::main]
@@ -711,7 +711,7 @@ async fn main() {
 ### Progress Tracking
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{Blocks, ProgressOptions, ProgressEvent};
 use bytes::Bytes;
 

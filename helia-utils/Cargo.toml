@@ -11,7 +11,7 @@ description = "Shared utilities and implementations for Helia"
 
 [dependencies]
 # Interface dependencies
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async and future utilities
 async-trait.workspace = true

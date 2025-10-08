@@ -32,7 +32,7 @@ cd rust-helia
 Create a new file `my_first_helia.rs`:
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use bytes::Bytes;
 use helia_interface::Blocks;
 
@@ -132,7 +132,7 @@ let is_pinned = helia.pins().is_pinned(&cid, None).await?;
 ### 1. Storing and Retrieving Text
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 use bytes::Bytes;
 
@@ -159,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 2. Working with Files
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
 use std::sync::Arc;
@@ -195,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 3. Structured Data with DAG-CBOR
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -236,7 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 4. Importing and Exporting CAR Files
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_car::{import_car, export_car};
 use std::path::Path;
 use std::sync::Arc;
@@ -264,7 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Custom Storage Paths
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_utils::{HeliaConfig, BlockstoreConfig, DatastoreConfig};
 use std::path::PathBuf;
 
@@ -295,7 +295,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Custom libp2p Identity
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_utils::{HeliaConfig, create_swarm_with_keypair};
 use libp2p::identity::Keypair;
 use std::sync::Arc;
@@ -329,7 +329,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Error Handling
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{HeliaError, HeliaErrorType, Blocks};
 use bytes::Bytes;
 use cid::Cid;

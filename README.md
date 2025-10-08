@@ -31,7 +31,7 @@ tokio = { version = "1", features = ["full"] }
 ### Basic Usage
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_unixfs::UnixFS;
 use bytes::Bytes;
 use std::sync::Arc;
@@ -127,7 +127,7 @@ cargo test
 ### Working with Blocks
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Blocks;
 use bytes::Bytes;
 use cid::Cid;
@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Working with DAG-CBOR
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -190,7 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Working with CAR Files
 
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_car::{import_car, export_car};
 use std::path::Path;
 use std::sync::Arc;

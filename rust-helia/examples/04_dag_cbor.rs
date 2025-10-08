@@ -6,7 +6,7 @@
 //! - Retrieving and decoding data
 //! - Working with custom types
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;

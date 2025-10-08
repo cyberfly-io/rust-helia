@@ -6,7 +6,7 @@
 //! - Listing all pins
 //! - Unpinning content
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{Blocks, Pins};
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;

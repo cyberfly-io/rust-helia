@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "Bitswap protocol implementation for content exchange between IPFS nodes"
 
 [dependencies]
-helia-interface = { path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 async-trait = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

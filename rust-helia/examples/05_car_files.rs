@@ -6,7 +6,7 @@
 //! - Working with multiple root blocks
 //! - Round-trip CAR operations
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_car::{import_car, export_car};
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;

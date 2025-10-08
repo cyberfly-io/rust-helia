@@ -7,7 +7,7 @@
 //! - Deleting blocks
 //! - Batch operations
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::{Blocks, InputPair};
 use bytes::Bytes;
 

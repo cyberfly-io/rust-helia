@@ -6,7 +6,7 @@
 //! - Graceful shutdown on Ctrl+C
 //! - Accessing node components (blockstore, datastore, etc.)
 
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_interface::Helia;
 use tokio::signal;
 
