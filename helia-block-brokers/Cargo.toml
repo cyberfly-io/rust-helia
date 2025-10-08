@@ -11,7 +11,7 @@ description = "Block broker abstractions for retrieving content from various sou
 
 [dependencies]
 helia-interface = { version = "0.1.2", path = "../helia-interface" }
-helia-bitswap = { path = "../helia-bitswap" }
+helia-bitswap = { version = "0.1.2", path = "../helia-bitswap" }
 async-trait = "0.1"
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
