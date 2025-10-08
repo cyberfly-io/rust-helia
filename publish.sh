@@ -60,10 +60,6 @@ publish_package() {
         echo -e "${GREEN}✓ Successfully published $package${NC}"
         cd ..
         
-        if [ $wait_time -gt 0 ]; then
-            echo -e "${YELLOW}Waiting ${wait_time}s for crates.io to process...${NC}"
-            sleep $wait_time
-        fi
         return 0
     else
         echo -e "${RED}Failed to publish $package${NC}"
