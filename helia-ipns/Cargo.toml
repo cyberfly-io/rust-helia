@@ -11,22 +11,36 @@ description = "IPNS (InterPlanetary Name System) implementation for Helia"
 
 [dependencies]
 helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-dnslink = { version = "0.1.2", path = "../helia-dnslink" }
 
 # Core async runtime
 async-trait.workspace = true
 futures.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "rt"] }
 
 # Error handling
 thiserror.workspace = true
+anyhow.workspace = true
 
 # IPFS and multiformats
 cid.workspace = true
 multihash.workspace = true
+libp2p-identity = { version = "0.2", features = ["ed25519", "rsa", "secp256k1", "peerid"] }
+
+# IPNS record handling (we'll implement our own for now)
+
+# Encoding
+multibase = "0.9"
+bs58 = "0.5"
+
+# Async utilities
+async-recursion = "1.1"
 
 # Utilities
 bytes.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tracing.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]

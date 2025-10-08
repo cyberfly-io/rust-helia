@@ -1,23 +1,33 @@
 //! Bitswap protocol implementation
+//! 
+//! This is a Rust implementation of the Bitswap protocol based on the
+//! TypeScript @helia/bitswap package.
+//!
+//! Bitswap is a data exchange protocol used in IPFS for requesting and
+//! providing blocks of data between peers.
 
-pub mod message;
-pub mod network;
-pub mod peer_manager;
+// Core modules (TypeScript-based architecture)
+pub mod constants;
+pub mod pb;
+pub mod utils;
+pub mod network_new;
+pub mod wantlist_new;
+pub mod peer_want_lists;
+
+// Session module (to be rewritten)
 pub mod session;
-pub mod stats;
-pub mod wantlist;
 
-pub use message::*;
-pub use network::*;
-pub use peer_manager::*;
+// Re-exports
+pub use constants::*;
+pub use pb::{WantType, BlockPresenceType};
+pub use utils::*;
+
+// Architecture exports
+pub use network_new::{Network, NetworkInit, NetworkEvent, BitswapMessageEvent};
+pub use wantlist_new::{WantList, WantListEntry, WantResult};
+pub use peer_want_lists::{PeerWantLists, PeerWantListsStats};
+
+// Session exports (temporary until rewrite)
 pub use session::*;
-pub use stats::*;
-pub use wantlist::*;
 
 pub type Result<T> = std::result::Result<T, helia_interface::HeliaError>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum WantType {
-    Block,
-    Have,
-}

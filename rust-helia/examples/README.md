@@ -120,6 +120,47 @@ cargo run --example 07_custom_config
 
 **Note:** This example creates a custom storage directory in your system's temp directory.
 
+### 08. JSON Codec (`08_json_codec.rs`)
+
+**Demonstrates:**
+- Storing JSON data in IPFS
+- Retrieving JSON data by CID
+- Working with structured JSON objects
+- Serialization and deserialization with serde
+- Handling different JSON data types (objects, arrays, raw values)
+
+**Run:**
+```bash
+cargo run --example 08_json_codec
+```
+
+### 09. P2P Content Sharing (`09_p2p_content_sharing.rs`)
+
+**Demonstrates:**
+- Peer-to-peer content sharing between two nodes
+- mDNS peer discovery on local network
+- One node storing content and sharing the CID
+- Another node retrieving content using the CID
+- Real-world P2P workflow
+
+**Run in Terminal 1 (Store):**
+```bash
+cargo run --example 09_p2p_content_sharing -- store "Hello from Node 1!"
+```
+
+**Run in Terminal 2 (Retrieve):**
+```bash
+cargo run --example 09_p2p_content_sharing -- get <CID-from-terminal-1>
+```
+
+**Example Workflow:**
+1. Start the store node in terminal 1 with content
+2. Copy the CID from the output
+3. Start the retrieve node in terminal 2 with the CID
+4. Watch as the second node discovers the first and retrieves the content!
+
+**Note:** Both nodes must be on the same local network for mDNS discovery to work.
+
 ## Example Output
 
 Each example includes detailed console output showing:

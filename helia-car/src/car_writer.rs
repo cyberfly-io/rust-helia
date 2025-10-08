@@ -1,9 +1,14 @@
 use crate::{CarBlock, CarHeader, Result};
+use cid::Cid;
 use helia_interface::HeliaError;
-use serde_json;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
+use unsigned_varint::encode as varint_encode;
 
-/// Writer for CAR (Content Addressed aRchive) files
+/// Writer for CAR (Content Addressed aRchive) v1 files
+/// 
+/// CAR v1 format:
+/// - Header: varint length + DAG-CBOR encoded header {version: 1, roots: [CID...]}
+/// - Blocks: repeated (varint length + CID bytes + block data)
 pub struct CarWriter<W> {
     writer: W,
     header_written: bool,
@@ -13,7 +18,7 @@ impl<W> CarWriter<W>
 where
     W: AsyncWrite + Unpin,
 {
-    /// Create a new CAR writer
+    /// Create a new CAR v1 writer
     pub fn new(writer: W) -> Self {
         Self {
             writer,
@@ -22,21 +27,33 @@ where
     }
 
     /// Write the CAR file header
+    /// 
+    /// The header is:
+    /// 1. Varint length of header
+    /// 2. DAG-CBOR encoded { version: 1, roots: [CID...] }
     pub async fn write_header(&mut self, header: &CarHeader) -> Result<()> {
         if self.header_written {
             return Err(HeliaError::other("Header already written"));
         }
 
-        // Serialize header
-        let header_bytes = serde_json::to_vec(header)
+        // Validate version
+        if header.version != 1 {
+            return Err(HeliaError::other(format!("Unsupported CAR version: {}", header.version)));
+        }
+
+        // Serialize header to DAG-CBOR
+        let header_bytes = serde_ipld_dagcbor::to_vec(header)
             .map_err(|e| HeliaError::other(format!("Failed to serialize header: {}", e)))?;
         
-        // Write length prefix (4 bytes, big endian)
-        let length = header_bytes.len() as u32;
-        self.writer.write_all(&length.to_be_bytes()).await
+        // Encode length as varint
+        let mut length_buf = varint_encode::u64_buffer();
+        let length_bytes = varint_encode::u64(header_bytes.len() as u64, &mut length_buf);
+        
+        // Write varint length
+        self.writer.write_all(length_bytes).await
             .map_err(|e| HeliaError::other(format!("Failed to write header length: {}", e)))?;
         
-        // Write header data
+        // Write DAG-CBOR header data
         self.writer.write_all(&header_bytes).await
             .map_err(|e| HeliaError::other(format!("Failed to write header data: {}", e)))?;
         
@@ -45,22 +62,36 @@ where
     }
 
     /// Write a block to the CAR file
+    /// 
+    /// Each block is:
+    /// 1. Varint length of (CID + data)
+    /// 2. CID bytes (varint CID version + multicodec + multihash)
+    /// 3. Block data
     pub async fn write_block(&mut self, block: &CarBlock) -> Result<()> {
         if !self.header_written {
             return Err(HeliaError::other("Must write header first"));
         }
 
-        // Serialize block
-        let block_bytes = serde_json::to_vec(block)
-            .map_err(|e| HeliaError::other(format!("Failed to serialize block: {}", e)))?;
+        // Get CID bytes
+        let cid_bytes = block.cid.to_bytes();
         
-        // Write length prefix (4 bytes, big endian)
-        let length = block_bytes.len() as u32;
-        self.writer.write_all(&length.to_be_bytes()).await
+        // Calculate total length (CID + data)
+        let total_length = cid_bytes.len() + block.data.len();
+        
+        // Encode length as varint
+        let mut length_buf = varint_encode::u64_buffer();
+        let length_bytes = varint_encode::u64(total_length as u64, &mut length_buf);
+        
+        // Write varint length
+        self.writer.write_all(length_bytes).await
             .map_err(|e| HeliaError::other(format!("Failed to write block length: {}", e)))?;
         
+        // Write CID bytes
+        self.writer.write_all(&cid_bytes).await
+            .map_err(|e| HeliaError::other(format!("Failed to write CID: {}", e)))?;
+        
         // Write block data
-        self.writer.write_all(&block_bytes).await
+        self.writer.write_all(&block.data).await
             .map_err(|e| HeliaError::other(format!("Failed to write block data: {}", e)))?;
         
         Ok(())
@@ -71,6 +102,32 @@ where
         for block in blocks {
             self.write_block(block).await?;
         }
+        Ok(())
+    }
+    
+    /// Write a block with raw CID and data
+    /// 
+    /// Helper method to write a block without wrapping in CarBlock first
+    pub async fn write_raw_block(&mut self, cid: &Cid, data: &[u8]) -> Result<()> {
+        if !self.header_written {
+            return Err(HeliaError::other("Must write header first"));
+        }
+
+        let cid_bytes = cid.to_bytes();
+        let total_length = cid_bytes.len() + data.len();
+        
+        let mut length_buf = varint_encode::u64_buffer();
+        let length_bytes = varint_encode::u64(total_length as u64, &mut length_buf);
+        
+        self.writer.write_all(length_bytes).await
+            .map_err(|e| HeliaError::other(format!("Failed to write block length: {}", e)))?;
+        
+        self.writer.write_all(&cid_bytes).await
+            .map_err(|e| HeliaError::other(format!("Failed to write CID: {}", e)))?;
+        
+        self.writer.write_all(data).await
+            .map_err(|e| HeliaError::other(format!("Failed to write block data: {}", e)))?;
+        
         Ok(())
     }
 
@@ -92,71 +149,4 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::CarHeader;
-    use bytes::Bytes;
-    use cid::Cid;
-    use std::io::Cursor;
-
-    #[tokio::test]
-    async fn test_car_writer_header() {
-        let mut buffer = Vec::new();
-        let cursor = Cursor::new(&mut buffer);
-        let mut writer = CarWriter::new(cursor);
-        
-        let header = CarHeader {
-            version: 1,
-            roots: vec![Cid::default()],
-        };
-        
-        writer.write_header(&header).await.unwrap();
-        writer.finish().await.unwrap();
-        
-        // Verify data was written
-        assert!(!buffer.is_empty());
-        
-        // First 4 bytes should be length
-        assert_eq!(buffer.len() >= 4, true);
-    }
-
-    #[tokio::test]
-    async fn test_car_writer_block_without_header() {
-        let mut buffer = Vec::new();
-        let cursor = Cursor::new(&mut buffer);
-        let mut writer = CarWriter::new(cursor);
-        
-        let block = CarBlock {
-            cid: Cid::default(),
-            data: Bytes::from("test data"),
-        };
-        
-        // Should fail without header
-        assert!(writer.write_block(&block).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_car_writer_complete() {
-        let mut buffer = Vec::new();
-        let cursor = Cursor::new(&mut buffer);
-        let mut writer = CarWriter::new(cursor);
-        
-        let header = CarHeader {
-            version: 1,
-            roots: vec![Cid::default()],
-        };
-        
-        let block = CarBlock {
-            cid: Cid::default(),
-            data: Bytes::from("test data"),
-        };
-        
-        writer.write_header(&header).await.unwrap();
-        writer.write_block(&block).await.unwrap();
-        writer.finish().await.unwrap();
-        
-        // Verify data was written
-        assert!(buffer.len() > 8); // At least header length + block length
-    }
-}
+// Tests have been moved to tests/car_v1_format.rs

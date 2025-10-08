@@ -11,19 +11,27 @@ description = "DNSLink resolution for Helia"
 
 [dependencies]
 helia-interface = { version = "0.1.2", path = "../helia-interface" }
+libp2p-identity = { version = "0.2", features = ["peerid"] }
 
 # Core async runtime
 async-trait.workspace = true
 tokio.workspace = true
 
+# DNS resolution with DNS-over-HTTPS support
+hickory-resolver = { version = "0.24", features = ["dns-over-https-rustls", "dnssec-ring"] }
+
+# CID parsing
+cid = "0.11"
+
+# Logging
+tracing = "0.1"
+
+# Async recursion helper
+async-recursion = "1.1"
+
 # Error handling
 thiserror.workspace = true
 
-# IPFS and multiformats
-cid.workspace = true
-
-# DNS resolution
-trust-dns-resolver = "0.23"
-
 [dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
 multihash.workspace = true

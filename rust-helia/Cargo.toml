@@ -61,3 +61,4 @@ helia-json = { version = "0.1.2", path = "../helia-json" }
 helia-car = { version = "0.1.2", path = "../helia-car" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }

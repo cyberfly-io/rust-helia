@@ -203,7 +203,7 @@ impl Session {
             .map(|cid| WantListEntry {
                 cid,
                 priority: self.priority,
-                want_type: WantType::Block,
+                want_type: WantType::WantBlock,
                 cancel: false,
                 send_dont_have: true,
             })

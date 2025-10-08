@@ -43,7 +43,7 @@ pub struct ImportOptions {
 }
 
 /// A CAR (Content Addressed aRchive) file block
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CarBlock {
     /// Content identifier of the block
     pub cid: Cid,
@@ -96,9 +96,11 @@ impl Default for CarVersion {
 }
 
 /// CAR file header
+/// 
+/// This is encoded as DAG-CBOR in the CAR v1 format
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CarHeader {
-    /// Version of the CAR format
+    /// Version of the CAR format (must be 1)
     pub version: u64,
     /// Root CIDs contained in this CAR
     pub roots: Vec<Cid>,
@@ -251,15 +253,24 @@ impl Car for SimpleCar {
                 roots,
             };
             
-            match serde_json::to_vec(&header) {
-                Ok(header_bytes) => {
-                    yield Ok(Bytes::from(header_bytes));
-                }
+            // Serialize header to DAG-CBOR
+            let header_bytes = match serde_ipld_dagcbor::to_vec(&header) {
+                Ok(bytes) => bytes,
                 Err(e) => {
                     yield Err(HeliaError::other(format!("Failed to serialize header: {}", e)));
                     return;
                 }
-            }
+            };
+            
+            // Encode header length as varint
+            let mut length_buf = unsigned_varint::encode::u64_buffer();
+            let length_bytes = unsigned_varint::encode::u64(header_bytes.len() as u64, &mut length_buf);
+            
+            // Yield length + header
+            let mut full_header = Vec::new();
+            full_header.extend_from_slice(length_bytes);
+            full_header.extend_from_slice(&header_bytes);
+            yield Ok(Bytes::from(full_header));
             
             // Stream block data
             let max_blocks = options.max_blocks.unwrap_or(usize::MAX);
@@ -270,17 +281,19 @@ impl Car for SimpleCar {
                     break;
                 }
                 
-                // Create block bytes (simplified format)
-                let block = CarBlock { cid, data };
-                match serde_json::to_vec(&block) {
-                    Ok(block_bytes) => {
-                        yield Ok(Bytes::from(block_bytes));
-                    }
-                    Err(e) => {
-                        yield Err(HeliaError::other(format!("Failed to serialize block: {}", e)));
-                        return;
-                    }
-                }
+                // Create block bytes (varint length + CID + data)
+                let cid_bytes = cid.to_bytes();
+                let total_length = cid_bytes.len() + data.len();
+                
+                let mut length_buf = unsigned_varint::encode::u64_buffer();
+                let length_bytes = unsigned_varint::encode::u64(total_length as u64, &mut length_buf);
+                
+                let mut block_bytes = Vec::new();
+                block_bytes.extend_from_slice(length_bytes);
+                block_bytes.extend_from_slice(&cid_bytes);
+                block_bytes.extend_from_slice(&data);
+                
+                yield Ok(Bytes::from(block_bytes));
                 
                 written_blocks += 1;
             }

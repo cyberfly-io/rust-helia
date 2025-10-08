@@ -2,6 +2,9 @@
 //! 
 //! Provides content routing (finding content) and peer routing (finding peers).
 
+pub mod delegated_http_routing;
+pub mod http_gateway_routing;
+
 use std::sync::Arc;
 use async_trait::async_trait;
 use cid::Cid;
@@ -112,38 +115,4 @@ pub fn routers(helia: Arc<dyn Helia>) -> Routers {
     Routers::new(helia)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn test_routers_creation() {
-        let helia = Arc::new(helia::create_helia_default().await.unwrap());
-        let _routers = Routers::new(helia);
-        // Just verify we can create an instance
-    }
-    
-    #[tokio::test]
-    async fn test_find_providers_empty() {
-        let helia = Arc::new(helia::create_helia_default().await.unwrap());
-        let routers = Routers::new(helia);
-        
-        let hash = multihash::Multihash::<64>::wrap(0x12, &[0u8; 32]).unwrap();
-        let cid = Cid::new_v1(0x55, hash);
-        
-        let result = routers.find_providers(&cid).await.unwrap();
-        assert_eq!(result.len(), 0);
-    }
-    
-    #[tokio::test]
-    async fn test_provide_succeeds() {
-        let helia = Arc::new(helia::create_helia_default().await.unwrap());
-        let routers = Routers::new(helia);
-        
-        let hash = multihash::Multihash::<64>::wrap(0x12, &[0u8; 32]).unwrap();
-        let cid = Cid::new_v1(0x55, hash);
-        
-        let result = routers.provide(&cid).await;
-        assert!(result.is_ok());
-    }
-}
+// Tests have been moved to individual router module tests
