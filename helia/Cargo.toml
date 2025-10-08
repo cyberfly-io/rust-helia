@@ -54,3 +54,8 @@ trust-dns-resolver.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
+helia-unixfs = { path = "../helia-unixfs" }
+helia-dag-cbor = { path = "../helia-dag-cbor" }
+helia-dag-json = { path = "../helia-dag-json" }
+helia-car = { path = "../helia-car" }
+serde = { workspace = true }

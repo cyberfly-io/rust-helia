@@ -25,9 +25,9 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
-homepage = "https://github.com/ipfs/helia#readme"
-repository = "https://github.com/ipfs/helia"
-authors = ["IPFS Team"]
+homepage = "https://github.com/cyberfly-io/rust-helia"
+repository = "https://github.com/cyberfly-io/rust-helia"
+authors = ["Helia Rust Contributors"]
 rust-version = "1.75"
 
 [workspace.dependencies]
