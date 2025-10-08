@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "Simple string storage and retrieval for Helia IPFS nodes"
 
 [dependencies]
-helia-interface = { version = "0.1.0", path = "../helia-interface" }
+helia-interface = { version = "0.1.2", path = "../helia-interface" }
 
 # Core async runtime and utilities
 async-trait.workspace = true
@@ -30,5 +30,4 @@ sha2.workspace = true
 bytes.workspace = true
 
 [dev-dependencies]
-rust-helia = { version = "0.1.2", path = "../rust-helia" }
 tokio.workspace = true

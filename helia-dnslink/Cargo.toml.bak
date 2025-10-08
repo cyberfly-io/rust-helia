@@ -1,5 +1,5 @@
 [package]
-name = "helia-routers"
+name = "helia-dnslink"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,10 +7,10 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Routing abstractions for Helia (content and peer routing)"
+description = "DNSLink resolution for Helia"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async runtime
 async-trait.workspace = true
@@ -21,7 +21,10 @@ thiserror.workspace = true
 
 # IPFS and multiformats
 cid.workspace = true
-libp2p.workspace = true
+
+# DNS resolution
+trust-dns-resolver = "0.23"
 
 [dev-dependencies]
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
 multihash.workspace = true

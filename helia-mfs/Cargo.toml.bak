@@ -1,5 +1,5 @@
 [package]
-name = "helia-dag-cbor"
+name = "helia-mfs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,30 +7,26 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "DAG-CBOR support for Helia"
+description = "Mutable File System (MFS) implementation for Helia IPFS nodes"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
+helia-unixfs = { path = "../helia-unixfs" }
 
-# Core async and future utilities
+# Core async runtime and utilities
 async-trait.workspace = true
 futures.workspace = true
 tokio.workspace = true
 
 # Error handling
-anyhow.workspace = true
 thiserror.workspace = true
 
 # IPFS and multiformats
 cid.workspace = true
-multihash.workspace = true
 
-# CBOR serialization
-serde.workspace = true
-serde_cbor = "0.11"
-
-# Data structures
+# Utilities
 bytes.workspace = true
 
 [dev-dependencies]
-tokio-test = "0.4"
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
+tokio.workspace = true

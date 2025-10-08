@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "UnixFS filesystem implementation for Helia"
 
 [dependencies]
-helia-interface = { version = "0.1.0", path = "../helia-interface" }
+helia-interface = { version = "0.1.2", path = "../helia-interface" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -42,4 +42,3 @@ uuid.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"
-rust-helia = { version = "0.1.2", path = "../rust-helia" }

@@ -1,5 +1,5 @@
 [package]
-name = "helia-dag-cbor"
+name = "helia-json"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,12 +7,12 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "DAG-CBOR support for Helia"
+description = "JSON support for Helia IPFS nodes"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
-# Core async and future utilities
+# Core async runtime and utilities  
 async-trait.workspace = true
 futures.workspace = true
 tokio.workspace = true
@@ -21,16 +21,18 @@ tokio.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
 # IPFS and multiformats
 cid.workspace = true
 multihash.workspace = true
 
-# CBOR serialization
-serde.workspace = true
-serde_cbor = "0.11"
-
-# Data structures
+# Utilities
 bytes.workspace = true
 
 [dev-dependencies]
-tokio-test = "0.4"
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
+tokio.workspace = true
+futures.workspace = true

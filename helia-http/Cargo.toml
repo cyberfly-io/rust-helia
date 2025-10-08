@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "HTTP-only implementation of Helia for lightweight IPFS access"
 
 [dependencies]
-helia-interface = { version = "0.1.0", path = "../helia-interface" }
+helia-interface = { version = "0.1.2", path = "../helia-interface" }
 tokio = { workspace = true, features = ["sync", "rt"] }
 async-trait = { workspace = true }
 cid = { workspace = true }

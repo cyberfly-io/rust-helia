@@ -1,5 +1,5 @@
 [package]
-name = "helia-routers"
+name = "helia-ipns"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,13 +7,14 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Routing abstractions for Helia (content and peer routing)"
+description = "IPNS (InterPlanetary Name System) implementation for Helia"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async runtime
 async-trait.workspace = true
+futures.workspace = true
 tokio.workspace = true
 
 # Error handling
@@ -21,7 +22,12 @@ thiserror.workspace = true
 
 # IPFS and multiformats
 cid.workspace = true
-libp2p.workspace = true
+multihash.workspace = true
+
+# Utilities
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-multihash.workspace = true
+rust-helia = { version = "0.1.2", path = "../rust-helia" }

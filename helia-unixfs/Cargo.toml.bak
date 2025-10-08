@@ -1,5 +1,5 @@
 [package]
-name = "helia-utils"
+name = "helia-unixfs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,11 +7,10 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Shared utilities and implementations for Helia"
+description = "UnixFS filesystem implementation for Helia"
 
 [dependencies]
-# Interface dependencies
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.0", path = "../helia-interface" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -25,29 +24,22 @@ thiserror.workspace = true
 # IPFS and multiformats
 cid.workspace = true
 multihash.workspace = true
-multiaddr.workspace = true
 
-# libp2p
-libp2p.workspace = true
-
-# Data structures
+# Data structures and serialization
 bytes.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-# Storage
-sled.workspace = true
+# UnixFS and protobuf
+prost = "0.12"
+prost-types = "0.12"
 
-# Logging and DNS
-tracing.workspace = true
-tracing-subscriber.workspace = true
-trust-dns-resolver.workspace = true
+# File system operations
+tokio-stream = "0.1"
 
 # Utilities
 uuid.workspace = true
-dashmap.workspace = true
-once_cell.workspace = true
 
-# Streams
-async-stream.workspace = true
-pin-utils.workspace = true
+[dev-dependencies]
+tokio-test = "0.4"
+rust-helia = { version = "0.1.2", path = "../rust-helia" }
