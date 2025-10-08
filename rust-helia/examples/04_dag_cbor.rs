@@ -7,6 +7,7 @@
 //! - Working with custom types
 
 use rust_helia::create_helia;
+use helia_interface::Helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;

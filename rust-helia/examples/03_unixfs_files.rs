@@ -9,9 +9,11 @@
 //! - Getting file statistics
 
 use rust_helia::create_helia;
-use helia_unixfs::{UnixFS, UnixFSInterface, AddBytesOptions};
+use helia_interface::Helia;
+use helia_unixfs::{UnixFS, UnixFSInterface, UnixFSStat};
 use bytes::Bytes;
 use std::sync::Arc;
+use futures::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,9 +39,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Get file statistics
     println!("3. Getting file statistics...");
     let stats = fs.stat(&file_cid, None).await?;
-    println!("   ✓ File type: {:?}", stats.file_type);
-    println!("   ✓ File size: {} bytes", stats.file_size);
-    println!("   ✓ Block count: {}\n", stats.blocks);
+    match stats {
+        UnixFSStat::File(file_stats) => {
+            println!("   ✓ File type: {:?}", file_stats.type_);
+            println!("   ✓ File size: {} bytes", file_stats.size);
+            println!("   ✓ Block count: {}\n", file_stats.blocks);
+        }
+        UnixFSStat::Directory(_) => {
+            println!("   Unexpected directory type");
+        }
+    }
 
     // 4. Create a directory
     println!("4. Creating a directory...");
@@ -66,32 +75,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. List directory contents
     println!("6. Listing directory contents...");
-    let entries = fs.ls(&dir_cid, None).await?;
-    println!("   Directory contains {} entries:", entries.len());
-    for entry in entries {
+    let mut entries_stream = fs.ls(&dir_cid, None).await?;
+    println!("   Directory contents:");
+    let mut count = 0;
+    while let Some(entry) = entries_stream.next().await {
+        count += 1;
         println!("     - {} ({})", entry.name, entry.cid);
-        if let Some(size) = entry.size {
-            println!("       Size: {} bytes", size);
+        println!("       Size: {} bytes", entry.size);
+    }
+    println!("   Total entries: {}\n", count);
+
+    // 7. Add a large file
+    println!("7. Adding a larger file...");
+    let large_content = Bytes::from("A".repeat(1024 * 10)); // 10KB file
+    let large_cid = fs.add_bytes(large_content, None).await?;
+    println!("   ✓ Large file CID: {}", large_cid);
+
+    let large_stats = fs.stat(&large_cid, None).await?;
+    match large_stats {
+        UnixFSStat::File(file_stats) => {
+            println!("   ✓ Large file size: {} bytes", file_stats.size);
+            println!("   ✓ Large file blocks: {}\n", file_stats.blocks);
+        }
+        UnixFSStat::Directory(_) => {
+            println!("   Unexpected directory type");
         }
     }
-    println!();
-
-    // 7. Add a large file with custom chunking
-    println!("7. Adding a large file with custom chunking...");
-    let large_content = Bytes::from(vec![42u8; 512 * 1024]); // 512 KB
-    let options = AddBytesOptions {
-        chunk_size: Some(256 * 1024), // 256 KB chunks
-        ..Default::default()
-    };
-    let large_file_cid = fs.add_bytes(large_content, Some(options)).await?;
-    println!("   ✓ Large file CID: {}", large_file_cid);
-    
-    let large_stats = fs.stat(&large_file_cid, None).await?;
-    println!("   ✓ Large file size: {} bytes", large_stats.file_size);
-    println!("   ✓ Large file blocks: {}\n", large_stats.blocks);
 
     helia.stop().await?;
-    println!("Example completed successfully!");
-    
+    println!("✓ Example completed successfully!");
+
     Ok(())
 }

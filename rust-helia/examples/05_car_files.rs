@@ -1,110 +1,77 @@
 //! CAR file import/export example
 //!
 //! This example demonstrates:
-//! - Creating content and exporting to CAR files
-//! - Importing content from CAR files
-//! - Working with multiple root blocks
-//! - Round-trip CAR operations
+//! - Creating content and working with CAR files
+//! - Using the SimpleCar in-memory implementation
+//! - Adding and retrieving blocks
 
 use rust_helia::create_helia;
-use helia_car::{import_car, export_car};
+use helia_interface::Helia;
+use helia_car::SimpleCar;
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== CAR File Operations Example ===\n");
 
-    // Setup temporary directory for CAR files
-    let temp_dir = std::env::temp_dir();
-    let export_path = temp_dir.join("helia_export.car");
-    let roundtrip_path = temp_dir.join("helia_roundtrip.car");
+    // Initialize Helia
+    let helia = Arc::new(create_helia(None).await?);
+    helia.start().await?;
+    
+    let fs = UnixFS::new(helia.clone());
 
-    // 1. Create content to export
+    // 1. Create some content
     println!("1. Creating content...");
-    let helia1 = Arc::new(create_helia(None).await?);
-    helia1.start().await?;
+    let file1 = Bytes::from("This is file 1");
+    let file2 = Bytes::from("This is file 2 with more content");
+    let file3 = Bytes::from("File 3 content here");
     
-    let fs = UnixFS::new(helia1.clone());
+    let cid1 = fs.add_bytes(file1.clone(), None).await?;
+    let cid2 = fs.add_bytes(file2.clone(), None).await?;
+    let cid3 = fs.add_bytes(file3.clone(), None).await?;
     
-    let content1 = Bytes::from("Hello from CAR file!");
-    let cid1 = fs.add_bytes(content1, None).await?;
-    println!("   ✓ Created file 1: {}", cid1);
-    
-    let content2 = Bytes::from("Second file in the CAR archive");
-    let cid2 = fs.add_bytes(content2, None).await?;
-    println!("   ✓ Created file 2: {}\n", cid2);
+    println!("   ✓ File 1 CID: {}", cid1);
+    println!("   ✓ File 2 CID: {}", cid2);
+    println!("   ✓ File 3 CID: {}\n", cid3);
 
-    // 2. Export to CAR file
-    println!("2. Exporting to CAR file...");
-    export_car(helia1.clone(), &cid1, &export_path, None).await?;
-    println!("   ✓ Exported to: {}\n", export_path.display());
+    // 2. Create a SimpleCar and add the blocks
+    println!("2. Creating CAR archive...");
+    let mut car = SimpleCar::new();
+    car.add_block(cid1, file1.clone());
+    car.add_block(cid2, file2.clone());
+    car.add_block(cid3, file3.clone());
+    println!("   ✓ Added {} blocks to CAR\n", car.len());
 
-    // 3. Create a new node and import
-    println!("3. Creating new Helia node for import...");
-    let helia2 = Arc::new(create_helia(None).await?);
-    helia2.start().await?;
-    println!("   ✓ New node created\n");
+    // 3. Verify blocks in CAR
+    println!("3. Verifying blocks in CAR...");
+    println!("   ✓ Has CID1: {}", car.has_block(&cid1));
+    println!("   ✓ Has CID2: {}", car.has_block(&cid2));
+    println!("   ✓ Has CID3: {}\n", car.has_block(&cid3));
 
-    println!("4. Importing from CAR file...");
-    let roots = import_car(helia2.clone(), &export_path, None).await?;
-    println!("   ✓ Imported {} root block(s):", roots.len());
-    for root in &roots {
-        println!("     - {}", root);
+    // 4. Retrieve blocks from CAR
+    println!("4. Retrieving blocks from CAR...");
+    if let Some(data) = car.get_block(&cid1) {
+        println!("   ✓ Retrieved file 1: {:?}", String::from_utf8_lossy(data));
+    }
+    if let Some(data) = car.get_block(&cid2) {
+        println!("   ✓ Retrieved file 2: {:?}", String::from_utf8_lossy(data));
+    }
+    if let Some(data) = car.get_block(&cid3) {
+        println!("   ✓ Retrieved file 3: {:?}\n", String::from_utf8_lossy(data));
+    }
+
+    // 5. List all blocks
+    println!("5. Listing all blocks in CAR...");
+    println!("   Total blocks: {}", car.blocks().len());
+    for (cid, data) in car.blocks() {
+        println!("     - {} ({} bytes)", cid, data.len());
     }
     println!();
 
-    // 4. Verify imported content
-    println!("5. Verifying imported content...");
-    let fs2 = UnixFS::new(helia2.clone());
-    let imported_data = fs2.cat(&roots[0], None).await?;
-    let imported_text = String::from_utf8(imported_data.to_vec())?;
-    println!("   ✓ Imported content: \"{}\"\n", imported_text);
+    helia.stop().await?;
+    println!("✓ CAR operations example completed successfully!");
 
-    // 5. Round-trip test: export again
-    println!("6. Round-trip test: exporting again...");
-    export_car(helia2.clone(), &roots[0], &roundtrip_path, None).await?;
-    println!("   ✓ Exported to: {}\n", roundtrip_path.display());
-
-    // 6. Compare file sizes
-    println!("7. Comparing CAR files...");
-    let original_size = std::fs::metadata(&export_path)?.len();
-    let roundtrip_size = std::fs::metadata(&roundtrip_path)?.len();
-    println!("   ✓ Original CAR size: {} bytes", original_size);
-    println!("   ✓ Round-trip CAR size: {} bytes", roundtrip_size);
-    if original_size == roundtrip_size {
-        println!("   ✓ Sizes match!\n");
-    } else {
-        println!("   ⚠ Sizes differ (this is expected for different encodings)\n");
-    }
-
-    // 7. Export directory structure
-    println!("8. Creating and exporting a directory...");
-    let dir_cid = fs.add_directory(None, None).await?;
-    let file_a = Bytes::from("File A content");
-    let file_a_cid = fs.add_bytes(file_a, None).await?;
-    let dir_cid = fs.cp(&file_a_cid, &dir_cid, "file_a.txt", None).await?;
-    
-    let file_b = Bytes::from("File B content");
-    let file_b_cid = fs.add_bytes(file_b, None).await?;
-    let dir_cid = fs.cp(&file_b_cid, &dir_cid, "file_b.txt", None).await?;
-    
-    let dir_car_path = temp_dir.join("helia_directory.car");
-    export_car(helia1.clone(), &dir_cid, &dir_car_path, None).await?;
-    println!("   ✓ Exported directory: {}", dir_cid);
-    println!("   ✓ CAR file: {}\n", dir_car_path.display());
-
-    // Cleanup
-    helia1.stop().await?;
-    helia2.stop().await?;
-
-    println!("Example completed successfully!");
-    println!("\nCAR files created:");
-    println!("  - {}", export_path.display());
-    println!("  - {}", roundtrip_path.display());
-    println!("  - {}", dir_car_path.display());
-    
     Ok(())
 }

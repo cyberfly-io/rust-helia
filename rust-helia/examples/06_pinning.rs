@@ -7,7 +7,7 @@
 //! - Unpinning content
 
 use rust_helia::create_helia;
-use helia_interface::{Blocks, Pins};
+use helia_interface::{Helia, Blocks, Pins};
 use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
 use std::sync::Arc;
@@ -60,9 +60,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut pin_stream = helia.pins().ls(None).await?;
     let mut pin_count = 0;
     
-    while let Some(cid) = pin_stream.next().await {
+    while let Some(pin) = pin_stream.next().await {
         pin_count += 1;
-        println!("   - Pin {}: {}", pin_count, cid);
+        println!("   - Pin {}: {}", pin_count, pin.cid);
     }
     println!("   ✓ Total pins: {}\n", pin_count);
 
@@ -96,9 +96,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut final_pins = helia.pins().ls(None).await?;
     let mut count = 0;
     
-    while let Some(cid) = final_pins.next().await {
+    while let Some(pin) = final_pins.next().await {
         count += 1;
-        println!("   - Pin {}: {}", count, cid);
+        println!("   - Pin {}: {}", count, pin.cid);
     }
     println!("   ✓ Total pins: {}\n", count);
 

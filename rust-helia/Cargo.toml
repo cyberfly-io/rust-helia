@@ -57,5 +57,7 @@ tokio-test.workspace = true
 helia-unixfs = { version = "0.1.2", path = "../helia-unixfs" }
 helia-dag-cbor = { version = "0.1.2", path = "../helia-dag-cbor" }
 helia-dag-json = { version = "0.1.2", path = "../helia-dag-json" }
+helia-json = { version = "0.1.2", path = "../helia-json" }
 helia-car = { version = "0.1.2", path = "../helia-car" }
 serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,81 +1,74 @@
-//! Block storage and retrieval example
-//!
-//! This example demonstrates:
+//! Example 02: Block Storage
+//! 
+//! Demonstrates low-level block storage operations including:
 //! - Storing raw blocks
 //! - Retrieving blocks by CID
 //! - Checking block existence
 //! - Deleting blocks
-//! - Batch operations
 
-use rust_helia::create_helia;
-use helia_interface::{Blocks, InputPair};
 use bytes::Bytes;
+use cid::Cid;
+use helia_interface::Helia;
+use rust_helia::create_helia;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Block Storage Example ===\n");
-
-    let helia = create_helia(None).await?;
-    helia.start().await?;
-
-    // 1. Store a single block
-    println!("1. Storing a single block...");
-    let data = Bytes::from("Hello, IPFS! This is my first block.");
-    let cid = helia.blockstore().put(data.clone(), None).await?;
-    println!("   ✓ Stored block with CID: {}\n", cid);
-
-    // 2. Retrieve the block
-    println!("2. Retrieving the block...");
-    let retrieved = helia.blockstore().get(&cid, None).await?;
-    let text = String::from_utf8(retrieved.to_vec())?;
-    println!("   ✓ Retrieved: \"{}\"\n", text);
-
-    // 3. Check if block exists
-    println!("3. Checking block existence...");
-    let exists = helia.blockstore().has(&cid, None).await?;
-    println!("   ✓ Block exists: {}\n", exists);
-
-    // 4. Store multiple blocks at once
-    println!("4. Storing multiple blocks...");
-    let blocks = vec![
-        InputPair {
-            cid: None,
-            block: Bytes::from("Block 1: First batch block"),
-        },
-        InputPair {
-            cid: None,
-            block: Bytes::from("Block 2: Second batch block"),
-        },
-        InputPair {
-            cid: None,
-            block: Bytes::from("Block 3: Third batch block"),
-        },
-    ];
+async fn main() -> anyhow::Result<()> {
+    println!("🔷 Helia Block Storage Example\n");
     
-    let cids = helia.blockstore().put_many(blocks, None).await?;
-    println!("   ✓ Stored {} blocks:", cids.len());
-    for (i, cid) in cids.iter().enumerate() {
-        println!("     - Block {}: {}", i + 1, cid);
+    // Initialize Helia
+    let helia = create_helia(None).await?;
+    
+    helia.start().await?;
+    println!("✅ Helia node started\n");
+    
+    // Create test data
+    let data = Bytes::from("Hello from Helia block storage!");
+    println!("📝 Test data: {:?}\n", String::from_utf8_lossy(&data));
+    
+    // Use the same approach as in blockstore_tests.rs:
+    // Create a CID from a fixed hash
+    let hash_bytes = [
+        0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
+        0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 
+        0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a, 0xd0, 0x15,
+        0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c,
+        0xd1, 0x5d, 0x6c, 0x15, 0xb0, 0xf0, 0x0a, 0x08
+    ];
+    let mh = multihash::Multihash::from_bytes(&hash_bytes)?;
+    let cid = Cid::new_v1(0x55, mh); // 0x55 is raw codec
+    
+    println!("🔑 Generated CID: {}\n", cid);
+    
+    // Store the block
+    println!("💾 Storing block...");
+    helia.blockstore().put(&cid, data.clone(), None).await?;
+    println!("✅ Block stored successfully\n");
+    
+    // Check if block exists
+    println!("🔍 Checking if block exists...");
+    let exists = helia.blockstore().has(&cid, None).await?;
+    println!("✅ Block exists: {}\n", exists);
+    
+    // Retrieve the block
+    println!("📥 Retrieving block...");
+    let retrieved = helia.blockstore().get(&cid, None).await?;
+    println!("✅ Block retrieved: {:?}\n", String::from_utf8_lossy(&retrieved));
+    
+    // Verify content matches
+    if data == retrieved {
+        println!("✅ Data integrity verified!\n");
     }
-    println!();
-
-    // 5. Retrieve all stored blocks
-    println!("5. Retrieving all stored blocks...");
-    for (i, cid) in cids.iter().enumerate() {
-        let data = helia.blockstore().get(cid, None).await?;
-        let text = String::from_utf8(data.to_vec())?;
-        println!("   - Block {}: \"{}\"", i + 1, text);
-    }
-    println!();
-
-    // 6. Delete a block
-    println!("6. Deleting first block...");
-    helia.blockstore().delete(&cid, None).await?;
-    let still_exists = helia.blockstore().has(&cid, None).await?;
-    println!("   ✓ Block deleted. Still exists: {}\n", still_exists);
-
-    helia.stop().await?;
-    println!("Example completed successfully!");
+    
+    // Delete the block using delete_many_cids
+    println!("🗑️  Deleting block...");
+    helia.blockstore().delete_many_cids(vec![cid], None).await?;
+    println!("✅ Block deleted\n");
+    
+    // Verify deletion
+    let exists_after = helia.blockstore().has(&cid, None).await?;
+    println!("🔍 Block exists after deletion: {}\n", exists_after);
+    
+    println!("🎉 Block storage example completed successfully!");
     
     Ok(())
 }
