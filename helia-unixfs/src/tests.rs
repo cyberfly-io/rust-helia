@@ -227,11 +227,148 @@ mod tests {
         let subdir_entries: Vec<_> = subdir_entries_stream.collect().await;
         assert_eq!(subdir_entries.len(), 1); // file2.txt
         
-        // Verify file contents
+                // Verify file contents
         let file1_data = fs.cat(&file1_cid, None).await.unwrap();
         assert_eq!(file1_data, Bytes::from("file1 content"));
         
         let file2_data = fs.cat(&file2_cid, None).await.unwrap();
         assert_eq!(file2_data, Bytes::from("file2 content"));
     }
+
+    #[tokio::test]
+    async fn test_chunked_file_1_5mb() {
+        let fs = create_test_unixfs().await;
+        
+        // Create 1.5MB file (will be split into 2 chunks)
+        let size = 1_500_000;
+        let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
+        let bytes = Bytes::from(data.clone());
+        
+        // Add with raw_leaves=true (default)
+        let options = AddOptions {
+            raw_leaves: true,
+            chunk_size: Some(1_048_576), // 1MB
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(bytes.clone(), Some(options)).await.unwrap();
+        
+        // Verify we can read it back
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved.len(), size);
+        assert_eq!(retrieved, bytes);
+        
+        // Test stat
+        let stat = fs.stat(&cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::File(file_stat) => {
+                assert_eq!(file_stat.size, size as u64);
+                assert_eq!(file_stat.blocks, 3); // 2 chunk blocks + 1 root
+            }
+            _ => panic!("Expected file stat"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_file_5mb() {
+        let fs = create_test_unixfs().await;
+        
+        // Create 5MB file (will be split into 5 chunks)
+        let size = 5_000_000;
+        let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
+        let bytes = Bytes::from(data.clone());
+        
+        let options = AddOptions {
+            raw_leaves: true,
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(bytes.clone(), Some(options)).await.unwrap();
+        
+        // Verify we can read it back
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved.len(), size);
+        assert_eq!(retrieved, bytes);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_file_with_offset() {
+        let fs = create_test_unixfs().await;
+        
+        // Create 2MB file
+        let size = 2_000_000;
+        let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
+        let bytes = Bytes::from(data.clone());
+        
+        let options = AddOptions {
+            raw_leaves: true,
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(bytes, Some(options)).await.unwrap();
+        
+        // Read with offset (from second chunk)
+        let cat_options = CatOptions {
+            offset: Some(1_048_576), // Start of second chunk
+            length: Some(100),
+        };
+        let partial = fs.cat(&cid, Some(cat_options)).await.unwrap();
+        assert_eq!(partial.len(), 100);
+        
+        // Verify data matches expected pattern
+        for (i, &byte) in partial.iter().enumerate() {
+            assert_eq!(byte, ((1_048_576 + i) % 256) as u8);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_file_without_raw_leaves() {
+        let fs = create_test_unixfs().await;
+        
+        // Create 1.5MB file with raw_leaves=false
+        let size = 1_500_000;
+        let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
+        let bytes = Bytes::from(data.clone());
+        
+        let options = AddOptions {
+            raw_leaves: false, // Wrap chunks in UnixFS
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(bytes.clone(), Some(options)).await.unwrap();
+        
+        // Verify we can read it back
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved.len(), size);
+        assert_eq!(retrieved, bytes);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_file_10mb() {
+        let fs = create_test_unixfs().await;
+        
+        // Create 10MB file - stress test
+        let size = 10_000_000;
+        let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
+        let bytes = Bytes::from(data.clone());
+        
+        let options = AddOptions {
+            raw_leaves: true,
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(bytes.clone(), Some(options)).await.unwrap();
+        
+        // Verify we can read it back
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved.len(), size);
+        assert_eq!(retrieved, bytes);
+        
+        // Check stats
+        let stat = fs.stat(&cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::File(file_stat) => {
+                assert_eq!(file_stat.size, size as u64);
+                // Should have ~10 chunks + 1 root
+                assert!(file_stat.blocks > 10);
+            }
+            _ => panic!("Expected file stat"),
+        }
+    }
 }
+

@@ -1,4 +1,36 @@
-// UnixFS implementation - simplified version
+//! UnixFS implementation for Helia
+//!
+//! This module provides a Rust implementation of the UnixFS data format,
+//! which is used by IPFS for representing files and directories.
+//!
+//! ## Features
+//!
+//! - File storage with automatic chunking for large files (>1MB)
+//! - Directory creation and manipulation
+//! - Support for both RAW and DAG-PB codecs
+//! - Metadata handling (mode, mtime)
+//! - Efficient chunk-based retrieval
+//!
+//! ## Usage
+//!
+//! ```ignore
+//! use helia_unixfs::{UnixFS, UnixFSInterface};
+//! use bytes::Bytes;
+//! use std::sync::Arc;
+//!
+//! async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//!     let helia = todo!();
+//!     let fs = UnixFS::new(Arc::new(helia));
+//!
+//!     // Add a small file
+//!     let data = Bytes::from("Hello, World!");
+//!     let cid = fs.add_bytes(data, None).await?;
+//!
+//!     // Read it back
+//!     let retrieved = fs.cat(&cid, None).await?;
+//!     Ok(())
+//! }
+//! ```
 
 use std::sync::Arc;
 use async_trait::async_trait;
@@ -11,25 +43,64 @@ use helia_interface::{Helia, AwaitIterable};
 use crate::*;
 use crate::pb::{Data, data};
 use crate::dag_pb::PBNode;
-use crate::chunker::{Chunker, FixedSizeChunker};
 
+/// DAG-PB codec identifier
 const DAG_PB_CODE: u64 = 0x70;
+
+/// RAW codec identifier
 const RAW_CODE: u64 = 0x55;
 
 /// Main UnixFS implementation
+///
+/// This struct provides methods for storing and retrieving files and directories
+/// using the UnixFS format. It automatically handles chunking for large files
+/// and provides efficient access to stored data.
+///
+/// # Examples
+///
+/// ```ignore
+/// use helia_unixfs::{UnixFS, UnixFSInterface};
+/// use bytes::Bytes;
+/// use std::sync::Arc;
+///
+/// async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///     let helia = todo!();
+///     let fs = UnixFS::new(Arc::new(helia));
+///
+///     // Add and retrieve a file
+///     let data = Bytes::from("Hello!");
+///     let cid = fs.add_bytes(data, None).await?;
+///     let retrieved = fs.cat(&cid, None).await?;
+///     Ok(())
+/// }
+/// ```
 pub struct UnixFS {
     helia: Arc<dyn Helia>,
-    chunker: Box<dyn Chunker + Send + Sync>,
 }
 
 impl UnixFS {
+    /// Creates a new UnixFS instance
+    ///
+    /// # Arguments
+    ///
+    /// * `helia` - The Helia node instance to use for block storage
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use helia_unixfs::UnixFS;
+    /// use std::sync::Arc;
+    ///
+    /// let helia_node = todo!();
+    /// let fs = UnixFS::new(Arc::new(helia_node));
+    /// ```
     pub fn new(helia: Arc<dyn Helia>) -> Self {
         Self {
             helia,
-            chunker: Box::new(FixedSizeChunker::default()),
         }
     }
 
+    /// Creates a CID for RAW codec data
     fn create_raw_cid(&self, data: &[u8]) -> Result<Cid, UnixFSError> {
         // Create a simple hash for RAW codec
         let mut hash_bytes = [0u8; 32];
@@ -52,6 +123,7 @@ impl UnixFS {
         Ok(Cid::new_v1(RAW_CODE, mh))
     }
 
+    /// Creates a CID for DAG-PB codec data
     fn create_dag_pb_cid(&self, data: &[u8]) -> Result<Cid, UnixFSError> {
         // Create a simple hash for DAG-PB codec
         let mut hash_bytes = [0u8; 32];
@@ -74,6 +146,7 @@ impl UnixFS {
         Ok(Cid::new_v1(DAG_PB_CODE, mh))
     }
 
+    /// Stores a block in the blockstore
     async fn put_block(&self, data: Bytes, codec: u64) -> Result<Cid, UnixFSError> {
         let cid = if codec == RAW_CODE {
             self.create_raw_cid(&data)?
@@ -85,10 +158,14 @@ impl UnixFS {
         Ok(cid)
     }
 
+    /// Retrieves a block from the blockstore
     async fn get_block(&self, cid: &Cid) -> Result<Bytes, UnixFSError> {
         self.helia.blockstore().get(cid, None).await.map_err(|e| e.into())
     }
 
+    /// Adds a small file (≤1MB) to the blockstore
+    ///
+    /// For files larger than the chunk size, use `add_chunked_file` instead.
     async fn add_small_file(&self, data: Bytes, raw_leaves: bool, mode: Option<u32>, mtime: Option<UnixFSTime>) -> Result<Cid, UnixFSError> {
         if raw_leaves {
             return self.put_block(data, RAW_CODE).await;
@@ -116,18 +193,114 @@ impl UnixFS {
 
         self.put_block(pb_bytes, DAG_PB_CODE).await
     }
+
+    /// Adds a large file with chunking support
+    ///
+    /// Files are split into chunks of the specified size, with each chunk
+    /// stored separately. A root node is created with links to all chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The file data to store
+    /// * `chunk_size` - Maximum size of each chunk in bytes
+    /// * `raw_leaves` - Whether to store chunks as RAW blocks (true) or wrapped in UnixFS (false)
+    /// * `mode` - Optional file mode/permissions
+    /// * `mtime` - Optional modification time
+    async fn add_chunked_file(&self, data: Bytes, chunk_size: usize, raw_leaves: bool, mode: Option<u32>, mtime: Option<UnixFSTime>) -> Result<Cid, UnixFSError> {
+        let total_size = data.len() as u64;
+        let mut chunk_cids = Vec::new();
+        let mut chunk_sizes = Vec::new();
+        let mut offset = 0;
+
+        // Split data into chunks and store each
+        while offset < data.len() {
+            let end = std::cmp::min(offset + chunk_size, data.len());
+            let chunk = data.slice(offset..end);
+            let chunk_len = chunk.len() as u64;
+
+            let chunk_cid = if raw_leaves {
+                // Store as raw block
+                self.put_block(chunk, RAW_CODE).await?
+            } else {
+                // Wrap in UnixFS
+                let chunk_unixfs = Data {
+                    r#type: data::DataType::Raw as i32,
+                    data: Some(chunk.to_vec()),
+                    filesize: chunk_len,
+                    ..Default::default()
+                };
+
+                let mut chunk_unixfs_bytes = Vec::new();
+                chunk_unixfs.encode(&mut chunk_unixfs_bytes)
+                    .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
+
+                let chunk_pb = PBNode::with_data(Bytes::from(chunk_unixfs_bytes));
+                let chunk_pb_bytes = chunk_pb.encode()
+                    .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
+
+                self.put_block(chunk_pb_bytes, DAG_PB_CODE).await?
+            };
+
+            chunk_cids.push(chunk_cid);
+            chunk_sizes.push(chunk_len);
+            offset = end;
+        }
+
+        // Create root node with links to all chunks
+        let root_unixfs = Data {
+            r#type: data::DataType::File as i32,
+            filesize: total_size,
+            blocksizes: chunk_sizes.clone(),
+            mode: mode.unwrap_or(0),
+            mtime: mtime.map(|t| pb::UnixTime {
+                seconds: t.seconds as i64,
+                fractional_nanoseconds: t.nanoseconds.unwrap_or(0),
+            }),
+            ..Default::default()
+        };
+
+        let mut root_unixfs_bytes = Vec::new();
+        root_unixfs.encode(&mut root_unixfs_bytes)
+            .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
+
+        let mut root_pb = PBNode::with_data(Bytes::from(root_unixfs_bytes));
+        
+        // Add links to chunks
+        for (i, (cid, size)) in chunk_cids.iter().zip(chunk_sizes.iter()).enumerate() {
+            root_pb.add_link(Some(format!("chunk-{}", i)), *cid, *size);
+        }
+
+        let root_pb_bytes = root_pb.encode()
+            .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
+
+        self.put_block(root_pb_bytes, DAG_PB_CODE).await
+    }
 }
 
 #[async_trait]
 impl UnixFSInterface for UnixFS {
     async fn add_bytes(&self, bytes: Bytes, options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
         let raw_leaves = options.as_ref().map(|o| o.raw_leaves).unwrap_or(false);
-        self.add_small_file(bytes, raw_leaves, None, None).await
+        let chunk_size = options.as_ref().and_then(|o| o.chunk_size).unwrap_or(1_048_576); // Default 1MB
+
+        // Use chunking for files larger than chunk_size
+        if bytes.len() > chunk_size {
+            self.add_chunked_file(bytes, chunk_size, raw_leaves, None, None).await
+        } else {
+            self.add_small_file(bytes, raw_leaves, None, None).await
+        }
     }
 
     async fn add_file(&self, file: FileCandidate, options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
         let raw_leaves = options.as_ref().map(|o| o.raw_leaves).unwrap_or(false);
-        self.add_small_file(file.content, raw_leaves, file.mode, file.mtime).await
+        let chunk_size = options.as_ref().and_then(|o| o.chunk_size).unwrap_or(1_048_576); // Default 1MB
+
+        // Use chunking for files larger than chunk_size
+        if file.content.len() > chunk_size {
+            self.add_chunked_file(file.content, chunk_size, raw_leaves, file.mode, file.mtime).await
+        } else {
+            self.add_small_file(file.content, raw_leaves, file.mode, file.mtime).await
+        }
     }
 
     async fn add_directory(&self, dir: Option<DirectoryCandidate>, _options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
@@ -167,7 +340,18 @@ impl UnixFSInterface for UnixFS {
                 let unixfs_data = Data::decode(&unixfs_bytes[..])
                     .map_err(|e| UnixFSError::other(format!("UnixFS decode: {}", e)))?;
 
-                if let Some(data) = unixfs_data.data {
+                // Check if this is a chunked file (has links but no inline data)
+                if !pb_node.links.is_empty() && unixfs_data.data.is_none() {
+                    // Chunked file - recursively fetch and concatenate chunks
+                    let mut result = Vec::new();
+                    for link in pb_node.links {
+                        if let Some(chunk_cid) = link.hash {
+                            let chunk_data = self.cat(&chunk_cid, None).await?;
+                            result.extend_from_slice(&chunk_data);
+                        }
+                    }
+                    Bytes::from(result)
+                } else if let Some(data) = unixfs_data.data {
                     Bytes::from(data)
                 } else {
                     return Err(UnixFSError::other("No data in file"));

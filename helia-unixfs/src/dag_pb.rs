@@ -1,9 +1,8 @@
 // DAG-PB encoding/decoding for UnixFS
 // Based on: https://github.com/ipld/specs/blob/master/block-layer/codecs/dag-pb.md
 
-use bytes::{Bytes, BytesMut, Buf, BufMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use cid::Cid;
-use prost::Message;
 
 /// DAG-PB Link
 #[derive(Debug, Clone, PartialEq)]
