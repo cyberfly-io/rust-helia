@@ -1,14 +1,14 @@
-//! Retrieve JSON from a remote peer using custom libp2p configuration with PSK
+//! Retrieve file content from a remote peer using UnixFS over a custom libp2p configuration with PSK
 //!
 //! This example demonstrates:
 //! - Building a custom libp2p swarm with PSK (Pre-Shared Key) support
 //! - Configuring transport encryption for private networks
 //! - Connecting to a specific remote peer
-//! - Retrieving and decoding JSON content by CID using helia-json
+//! - Retrieving file bytes by CID using helia-unixfs
 
 use cid::Cid;
 use helia_interface::Helia;
-use helia_json::{Json, JsonInterface};
+use helia_unixfs::{UnixFS, UnixFSInterface};
 use helia_utils::{HeliaBehaviour, HeliaConfig, HeliaImpl};
 use libp2p::multiaddr::Protocol;
 use libp2p::{
@@ -19,7 +19,6 @@ use libp2p::{
     swarm::dial_opts::{DialOpts, PeerCondition},
     tcp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm, Transport,
 };
-use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,8 +44,8 @@ const REMOTE_PEER_ADDRS: &[&str] = &[
 // Topic used by the remote node for pubsub-based peer discovery
 const PEER_DISCOVERY_TOPIC: &str = "cyberfly._peer-discovery._p2p._pubsub";
 
-// JSON CID to retrieve
-const JSON_CID: &str = "bagaaiera6rlwed56rf6zddaceyxyy6o5w5376evc35ohkh2wfz6tyxvqviyq";
+// UnixFS CID to retrieve
+const UNIXFS_FILE_CID: &str = "bafkreibfi2vzqfjcgate47pyrjowo55me2zbo26nmcdcpum3qpq4jpeqzu";
 
 /// Create a custom libp2p swarm with PSK (Pre-Shared Key) protection
 async fn create_swarm_with_psk(
@@ -131,8 +130,8 @@ async fn create_swarm_with_psk(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Helia JSON - Custom libp2p Configuration Example");
-    println!("===================================================\n");
+    println!("🚀 Helia UnixFS - Custom libp2p Configuration Example");
+    println!("====================================================\n");
 
     // Step 1: Parse the swarm key
     println!("📝 Step 1: Parsing swarm key...");
@@ -187,7 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 3: Parse the target CID
     println!("\n🎯 Step 3: Parsing target CID...");
-    let cid = Cid::from_str(JSON_CID)?;
+    let cid = Cid::from_str(UNIXFS_FILE_CID)?;
     println!("✅ CID parsed successfully");
     println!("   CID: {}", cid);
     println!("   Codec: 0x{:x}", cid.codec());
@@ -221,10 +220,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     helia.start().await?;
     println!("✅ Helia node started");
 
-    // Step 6: Create JSON instance
-    println!("\n📦 Step 6: Creating JSON instance...");
-    let json_store = Json::new(helia.clone());
-    println!("✅ JSON instance ready");
+    // Step 6: Create UnixFS instance
+    println!("\n📦 Step 6: Creating UnixFS instance...");
+    let unixfs = UnixFS::new(helia.clone());
+    println!("✅ UnixFS instance ready");
 
     // Step 7: Add remote peer and dial
     println!("\n🔗 Step 7: Adding and dialing remote peer...");
@@ -232,11 +231,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let discovery_topic = libp2p::gossipsub::IdentTopic::new(PEER_DISCOVERY_TOPIC);
 
-    // Get access to the swarm and dial the remote peer
     {
         let mut swarm = swarm_arc.lock().await;
 
-        // Add peer to Kademlia routing table
         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
         println!("   ✅ Added peer as explicit gossipsub peer");
 
@@ -301,7 +298,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n⏳ Waiting for connection establishment and provider responses...");
     sleep(Duration::from_secs(20)).await;
 
-    // Check connection status
     {
         let swarm = swarm_arc.lock().await;
         let connected = swarm.is_connected(&peer_id);
@@ -312,35 +308,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Step 7: Attempt to retrieve JSON content
-    println!("\n📄 Step 9: Retrieving JSON content...");
-    println!("   CID: {}", JSON_CID);
+    // Step 9: Attempt to retrieve UnixFS content
+    println!("\n📄 Step 9: Retrieving UnixFS file content...");
+    println!("   CID: {}", UNIXFS_FILE_CID);
 
-    match json_store.get::<Value>(&cid, None).await {
-        Ok(json_data) => {
-            println!("\n🎉 SUCCESS! JSON content retrieved!\n");
-            println!("📋 JSON Content:");
-            println!("{}", serde_json::to_string_pretty(&json_data)?);
+    match unixfs.cat(&cid, None).await {
+        Ok(bytes) => {
+            let byte_len = bytes.len();
+            println!("\n🎉 SUCCESS! File content retrieved!\n");
+            println!("📊 File Metadata:");
+            println!("   Size: {} bytes", byte_len);
 
-            // Show some metadata
-            println!("\n📊 Metadata:");
-            match &json_data {
-                Value::Object(map) => {
-                    println!("   Type: JSON Object");
-                    println!("   Keys: {}", map.len());
-                    println!("   Keys: {:?}", map.keys().collect::<Vec<_>>());
+            const PREVIEW_LIMIT: usize = 512;
+            let preview_len = byte_len.min(PREVIEW_LIMIT);
+            let preview_slice = &bytes[..preview_len];
+
+            if preview_len > 0 {
+                match std::str::from_utf8(preview_slice) {
+                    Ok(text) => {
+                        println!("\n🖨️  UTF-8 Preview ({} bytes{}):", preview_len, if byte_len > PREVIEW_LIMIT { "; truncated" } else { "" });
+                        println!("{}", text);
+                    }
+                    Err(_) => {
+                        println!("\n🔡 Hex Preview ({} bytes{}):", preview_len, if byte_len > PREVIEW_LIMIT { "; truncated" } else { "" });
+                        let hex_preview: String = preview_slice.iter().map(|b| format!("{:02x}", b)).collect();
+                        println!("{}", hex_preview);
+                    }
                 }
-                Value::Array(arr) => {
-                    println!("   Type: JSON Array");
-                    println!("   Length: {}", arr.len());
-                }
-                _ => {
-                    println!("   Type: {}", type_name(&json_data));
-                }
+            }
+
+            if byte_len > PREVIEW_LIMIT {
+                println!("\nℹ️  The file is larger than the preview. Save it locally to inspect the full contents.");
             }
         }
         Err(e) => {
-            println!("\n❌ Could not retrieve JSON content");
+            println!("\n❌ Could not retrieve UnixFS content");
             println!("   Error: {}\n", e);
 
             println!("💡 Troubleshooting Guide:");
@@ -385,8 +387,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Extract PeerId from a multiaddr
 fn extract_peer_id(addr: &Multiaddr) -> Result<PeerId, Box<dyn std::error::Error>> {
-    use libp2p::multiaddr::Protocol;
-
     for proto in addr.iter() {
         if let Protocol::P2p(peer_id) = proto {
             return Ok(peer_id);
@@ -470,24 +470,10 @@ async fn resolve_dns_multiaddrs(
                     resolved.push((addr.clone(), addr.clone()));
                 }
             }
-        } else {
-            if seen.insert(addr_str.clone()) {
-                resolved.push((addr.clone(), addr.clone()));
-            }
+        } else if seen.insert(addr_str.clone()) {
+            resolved.push((addr.clone(), addr.clone()));
         }
     }
 
     Ok(resolved)
-}
-
-/// Get a human-readable type name for JSON values
-fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "Null",
-        Value::Bool(_) => "Boolean",
-        Value::Number(_) => "Number",
-        Value::String(_) => "String",
-        Value::Array(_) => "Array",
-        Value::Object(_) => "Object",
-    }
 }
