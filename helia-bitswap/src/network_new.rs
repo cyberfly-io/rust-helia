@@ -3,22 +3,16 @@
 
 use crate::{
     constants::*,
-    pb::{BitswapMessage as PbBitswapMessage},
-    utils::{QueuedBitswapMessage, merge_messages, split_message},
+    coordinator::OutboundMessage,
+    pb::BitswapMessage as PbBitswapMessage,
+    utils::{merge_messages, split_message, QueuedBitswapMessage},
     Result,
 };
-use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
-use futures::{Stream, StreamExt};
 use helia_interface::HeliaError;
-use libp2p::{
-    core::upgrade::ReadyUpgrade,
-    request_response::{InboundRequestId, OutboundRequestId, ResponseChannel},
-    swarm::{NetworkBehaviour, SwarmEvent},
-    PeerId, StreamProtocol,
-};
-use prost::Message as ProstMessage;
+use libp2p::PeerId;
+use prost::Message;
 use std::{
     collections::{HashMap, VecDeque},
     io::Cursor,
@@ -26,7 +20,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace};
 
 /// Bitswap message event detail
 #[derive(Debug, Clone)]
@@ -70,6 +64,8 @@ pub struct Network {
     event_tx: mpsc::UnboundedSender<NetworkEvent>,
     /// Event receiver
     event_rx: Arc<RwLock<mpsc::UnboundedReceiver<NetworkEvent>>>,
+    /// Outbound swarm sender shared with coordinator
+    outbound_tx: Arc<RwLock<Option<mpsc::UnboundedSender<OutboundMessage>>>>,
 }
 
 /// Network initialization parameters
@@ -102,7 +98,10 @@ impl Default for NetworkInit {
 
 impl Network {
     /// Create a new network
-    pub fn new(init: NetworkInit) -> Self {
+    pub fn new(
+        init: NetworkInit,
+        outbound_tx: Arc<RwLock<Option<mpsc::UnboundedSender<OutboundMessage>>>>,
+    ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         Self {
@@ -135,7 +134,14 @@ impl Network {
             send_queue: Arc::new(RwLock::new(HashMap::new())),
             event_tx,
             event_rx: Arc::new(RwLock::new(event_rx)),
+            outbound_tx,
         }
+    }
+
+    /// Set (or replace) the outbound sender
+    pub async fn set_outbound_sender(&self, sender: mpsc::UnboundedSender<OutboundMessage>) {
+        let mut guard = self.outbound_tx.write().await;
+        *guard = Some(sender);
     }
 
     /// Start the network
@@ -144,7 +150,10 @@ impl Network {
             return Ok(());
         }
 
-        info!("Starting Bitswap network with protocols: {:?}", self.protocols);
+        info!(
+            "Starting Bitswap network with protocols: {:?}",
+            self.protocols
+        );
         self.running = true;
 
         Ok(())
@@ -171,11 +180,7 @@ impl Network {
     }
 
     /// Handle incoming stream with bitswap message
-    pub async fn handle_incoming_stream(
-        &self,
-        peer: PeerId,
-        data: Bytes,
-    ) -> Result<()> {
+    pub async fn handle_incoming_stream(&self, peer: PeerId, data: Bytes) -> Result<()> {
         if !self.running {
             return Err(HeliaError::network("Network is not running"));
         }
@@ -187,9 +192,10 @@ impl Network {
             .map_err(|e| HeliaError::network(format!("Failed to decode message: {}", e)))?;
 
         debug!(
-            "Received message from {} with {} blocks, {} wantlist entries",
+            "Received message from {} with {} structured blocks, {} raw blocks, {} wantlist entries",
             peer,
             message.blocks.len(),
+            message.raw_blocks.len(),
             message
                 .wantlist
                 .as_ref()
@@ -198,24 +204,20 @@ impl Network {
         );
 
         // Send event
-        let _ = self.event_tx.send(NetworkEvent::BitswapMessage(
-            BitswapMessageEvent {
+        let _ = self
+            .event_tx
+            .send(NetworkEvent::BitswapMessage(BitswapMessageEvent {
                 peer,
                 message,
-            },
-        ));
+            }));
 
         Ok(())
     }
 
     /// Send a message to a peer
-    pub async fn send_message(
-        &self,
-        peer: PeerId,
-        message: QueuedBitswapMessage,
-    ) -> Result<Vec<u8>> {
+    pub async fn send_message(&self, peer: PeerId, message: QueuedBitswapMessage) -> Result<()> {
         if !self.running {
-            return Err(HeliaError::network("Network is not running"));
+            debug!("Network facade not marked running; queuing message anyway");
         }
 
         // Check if there's already a queued message for this peer
@@ -231,9 +233,9 @@ impl Network {
         }
 
         // Get the message to send
-        let message_to_send = peer_queue.pop_front().ok_or_else(|| {
-            HeliaError::network("No message to send")
-        })?;
+        let message_to_send = peer_queue
+            .pop_front()
+            .ok_or_else(|| HeliaError::network("No message to send"))?;
 
         drop(queue);
 
@@ -242,14 +244,23 @@ impl Network {
         // Split message if too large
         let messages = split_message(message_to_send, self.max_outgoing_message_size);
 
-        // Encode all messages
-        let mut encoded_messages = Vec::new();
+        let sender = {
+            let guard = self.outbound_tx.read().await;
+            guard.clone()
+        };
+
+        let outbound =
+            sender.ok_or_else(|| HeliaError::network("Outbound message channel not connected"))?;
+
         for msg in messages {
-            let encoded = msg.encode_to_vec();
-            encoded_messages.extend_from_slice(&encoded);
+            outbound
+                .send(OutboundMessage { peer, message: msg })
+                .map_err(|e| {
+                    HeliaError::network(format!("Failed to queue outbound message: {}", e))
+                })?;
         }
 
-        Ok(encoded_messages)
+        Ok(())
     }
 
     /// Find providers for a CID
@@ -262,7 +273,7 @@ impl Network {
     /// Find and connect to providers
     pub async fn find_and_connect(&self, cid: &Cid) -> Result<()> {
         debug!("Finding and connecting to providers for {}", cid);
-        
+
         // This will be implemented when integrated with libp2p
         // For now, just log
         Ok(())
@@ -275,7 +286,7 @@ impl Network {
         }
 
         debug!("Connecting to peer {}", peer);
-        
+
         // This will be implemented when integrated with libp2p
         Ok(())
     }
@@ -312,7 +323,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_network_start_stop() {
-        let mut network = Network::new(NetworkInit::default());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let sender_slot = Arc::new(RwLock::new(Some(tx)));
+        let mut network = Network::new(NetworkInit::default(), sender_slot);
         assert!(!network.is_running());
 
         network.start().await.unwrap();
@@ -324,9 +337,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_network_protocols() {
-        let network = Network::new(NetworkInit::default());
+        let sender_slot = Arc::new(RwLock::new(None));
+        let network = Network::new(NetworkInit::default(), sender_slot);
         let protocols = network.protocols();
-        
+
         assert!(protocols.contains(&BITSWAP_120.to_string()));
         assert!(protocols.contains(&BITSWAP_110.to_string()));
         assert!(protocols.contains(&BITSWAP_100.to_string()));
@@ -334,7 +348,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_message() {
-        let mut network = Network::new(NetworkInit::default());
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let sender_slot = Arc::new(RwLock::new(Some(tx)));
+        let mut network = Network::new(NetworkInit::default(), sender_slot);
         network.start().await.unwrap();
 
         let peer = PeerId::random();
@@ -343,5 +359,8 @@ mod tests {
         // Should be able to send message
         let result = network.send_message(peer, message).await;
         assert!(result.is_ok());
+
+        // Sending an empty message still queues an outbound packet (default empty)
+        assert!(rx.try_recv().is_ok());
     }
 }

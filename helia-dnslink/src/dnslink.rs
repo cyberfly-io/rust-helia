@@ -1,15 +1,16 @@
-use crate::{DnsLinkError, DnsLinkResult, ResolveOptions, MAX_RECURSIVE_DEPTH};
+use crate::namespaces::{extract_dnslink_domain, parse_ipfs, parse_ipns, parse_txt_value};
 use crate::resolver::DnsResolver;
-use crate::namespaces::{parse_ipfs, parse_ipns, extract_dnslink_domain, parse_txt_value};
-use async_trait::async_trait;
+use crate::{DnsLinkError, DnsLinkResult, ResolveOptions, MAX_RECURSIVE_DEPTH};
 use async_recursion::async_recursion;
+use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, error};
 
 #[async_trait]
 pub trait DNSLink: Send + Sync {
     async fn resolve(&self, domain: &str) -> Result<DnsLinkResult, DnsLinkError> {
-        self.resolve_with_options(domain, ResolveOptions::default()).await
+        self.resolve_with_options(domain, ResolveOptions::default())
+            .await
     }
 
     async fn resolve_with_options(
@@ -37,7 +38,7 @@ impl DnsLinkImpl {
     ) -> Result<DnsLinkResult, DnsLinkError> {
         if depth == 0 {
             return Err(DnsLinkError::RecursionLimit(
-                options.max_recursive_depth.unwrap_or(MAX_RECURSIVE_DEPTH)
+                options.max_recursive_depth.unwrap_or(MAX_RECURSIVE_DEPTH),
             ));
         }
 
@@ -75,7 +76,7 @@ impl DnsLinkImpl {
     ) -> Result<DnsLinkResult, DnsLinkError> {
         if depth == 0 {
             return Err(DnsLinkError::RecursionLimit(
-                options.max_recursive_depth.unwrap_or(MAX_RECURSIVE_DEPTH)
+                options.max_recursive_depth.unwrap_or(MAX_RECURSIVE_DEPTH),
             ));
         }
 
@@ -84,7 +85,7 @@ impl DnsLinkImpl {
         }
 
         debug!("Querying TXT records for: {}", domain);
-        
+
         let txt_records = self.resolver.query_txt(domain).await?;
 
         let mut records = txt_records;
@@ -94,7 +95,7 @@ impl DnsLinkImpl {
 
         for answer in &records {
             debug!("Processing TXT record: {}", answer.data);
-            
+
             let value = match parse_txt_value(&answer.data) {
                 Some(v) => v,
                 None => continue,
@@ -111,36 +112,30 @@ impl DnsLinkImpl {
             debug!("Namespace: {}", namespace);
 
             match namespace {
-                "ipfs" => {
-                    match parse_ipfs(&value, answer.clone()) {
-                        Ok(result) => return Ok(result),
-                        Err(e) => {
-                            error!("Failed to parse IPFS namespace: {:?}", e);
-                            continue;
-                        }
+                "ipfs" => match parse_ipfs(&value, answer.clone()) {
+                    Ok(result) => return Ok(result),
+                    Err(e) => {
+                        error!("Failed to parse IPFS namespace: {:?}", e);
+                        continue;
                     }
-                }
-                "ipns" => {
-                    match parse_ipns(&value, answer.clone()) {
-                        Ok(result) => return Ok(result),
-                        Err(e) => {
-                            error!("Failed to parse IPNS namespace: {:?}", e);
-                            continue;
-                        }
+                },
+                "ipns" => match parse_ipns(&value, answer.clone()) {
+                    Ok(result) => return Ok(result),
+                    Err(e) => {
+                        error!("Failed to parse IPNS namespace: {:?}", e);
+                        continue;
                     }
-                }
-                "dnslink" => {
-                    match extract_dnslink_domain(&value) {
-                        Ok(next_domain) => {
-                            debug!("Following recursive dnslink to: {}", next_domain);
-                            return self.resolve_domain(&next_domain, depth - 1, options).await;
-                        }
-                        Err(e) => {
-                            error!("Failed to extract dnslink domain: {:?}", e);
-                            continue;
-                        }
+                },
+                "dnslink" => match extract_dnslink_domain(&value) {
+                    Ok(next_domain) => {
+                        debug!("Following recursive dnslink to: {}", next_domain);
+                        return self.resolve_domain(&next_domain, depth - 1, options).await;
                     }
-                }
+                    Err(e) => {
+                        error!("Failed to extract dnslink domain: {:?}", e);
+                        continue;
+                    }
+                },
                 _ => {
                     debug!("Unknown namespace '{}', returning as Other", namespace);
                     return Ok(DnsLinkResult::Other {
@@ -200,7 +195,7 @@ pub fn dns_link(init: DnsLinkInit) -> Result<Arc<dyn DNSLink>, DnsLinkError> {
     } else {
         hickory_resolver::config::ResolverConfig::default()
     };
-    
+
     let resolver = DnsResolver::with_config(config, init.cache_enabled)?;
 
     Ok(Arc::new(DnsLinkImpl::new(resolver)))

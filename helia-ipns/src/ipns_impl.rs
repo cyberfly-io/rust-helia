@@ -1,14 +1,14 @@
 //! Core IPNS implementation
 
+use crate::keys::{routing_key_from_peer_id, routing_key_from_public_key, Keychain};
+use crate::routing::{GetOptions, PutOptions};
 use crate::*;
-use crate::keys::{Keychain, routing_key_from_public_key, routing_key_from_peer_id};
-use crate::routing::{PutOptions, GetOptions};
-use std::sync::{Arc, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use std::pin::Pin;
-use std::future::Future;
-use libp2p_identity::{Keypair, PeerId, PublicKey};
 use futures::future::join_all;
+use libp2p_identity::{Keypair, PeerId, PublicKey};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::task::JoinHandle;
 
 /// IPNS implementation structure
@@ -25,9 +25,11 @@ pub struct IpnsImpl {
 
 impl IpnsImpl {
     pub fn new(init: IpnsInit) -> Result<Arc<dyn Ipns>, IpnsError> {
-        let republish_interval = init.republish_interval
+        let republish_interval = init
+            .republish_interval
             .unwrap_or_else(|| Duration::from_millis(DEFAULT_REPUBLISH_INTERVAL_MS));
-        let republish_concurrency = init.republish_concurrency
+        let republish_concurrency = init
+            .republish_concurrency
             .unwrap_or(DEFAULT_REPUBLISH_CONCURRENCY);
 
         let implementation = Self {
@@ -54,14 +56,11 @@ impl IpnsImpl {
         ttl_ns: u64,
     ) -> Result<IpnsRecord, IpnsError> {
         // Calculate validity (lifetime from now)
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap();
-        
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
         let validity_time = now + std::time::Duration::from_millis(lifetime_ms);
-        let validity = chrono::DateTime::<chrono::Utc>::from(
-            UNIX_EPOCH + validity_time
-        ).to_rfc3339();
+        let validity =
+            chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + validity_time).to_rfc3339();
 
         // Get public key bytes
         let public_key = keypair.public();
@@ -108,7 +107,7 @@ impl IpnsImpl {
     /// Parse an IPNS value to extract CID and path
     fn parse_ipns_value(value: &str) -> Result<(Cid, String), IpnsError> {
         let parts: Vec<&str> = value.split('/').filter(|s| !s.is_empty()).collect();
-        
+
         if parts.is_empty() {
             return Err(IpnsError::InvalidRecord("Empty value".to_string()));
         }
@@ -118,10 +117,11 @@ impl IpnsImpl {
                 if parts.len() < 2 {
                     return Err(IpnsError::InvalidCid("No CID in value".to_string()));
                 }
-                
-                let cid: Cid = parts[1].parse()
+
+                let cid: Cid = parts[1]
+                    .parse()
                     .map_err(|e| IpnsError::InvalidCid(format!("Invalid CID: {}", e)))?;
-                
+
                 let path = if parts.len() > 2 {
                     format!("/{}", parts[2..].join("/"))
                 } else {
@@ -132,11 +132,14 @@ impl IpnsImpl {
             }
             "ipns" => {
                 // Recursive IPNS reference
-                Err(IpnsError::Other("Recursive IPNS resolution not yet implemented".to_string()))
+                Err(IpnsError::Other(
+                    "Recursive IPNS resolution not yet implemented".to_string(),
+                ))
             }
-            _ => {
-                Err(IpnsError::InvalidRecord(format!("Unknown namespace: {}", parts[0])))
-            }
+            _ => Err(IpnsError::InvalidRecord(format!(
+                "Unknown namespace: {}",
+                parts[0]
+            ))),
         }
     }
 }
@@ -156,7 +159,7 @@ impl Ipns for IpnsImpl {
         // Get or create the key
         let keypair = self.keychain.get_or_create_key(key_name)?;
         let public_key = keypair.public();
-        
+
         // Generate routing key
         let routing_key = routing_key_from_public_key(&public_key);
 
@@ -173,7 +176,8 @@ impl Ipns for IpnsImpl {
 
         // Get options with defaults
         let lifetime_ms = options.lifetime.unwrap_or(DEFAULT_LIFETIME_MS);
-        let ttl_ns = options.ttl
+        let ttl_ns = options
+            .ttl
             .map(|ms| ms * 1_000_000) // Convert ms to ns
             .unwrap_or(DEFAULT_TTL_NS);
 
@@ -181,13 +185,8 @@ impl Ipns for IpnsImpl {
         let value_str = Self::format_ipns_value(value);
 
         // Create the IPNS record
-        let record = self.create_ipns_record(
-            &keypair,
-            &value_str,
-            sequence,
-            lifetime_ms,
-            ttl_ns,
-        )?;
+        let record =
+            self.create_ipns_record(&keypair, &value_str, sequence, lifetime_ms, ttl_ns)?;
 
         // Marshal the record
         let marshaled = self.marshal_record(&record)?;
@@ -196,7 +195,8 @@ impl Ipns for IpnsImpl {
         let metadata = RecordMetadata::new(key_name.to_string(), lifetime_ms);
 
         // Store locally
-        self.local_store.put(&routing_key, marshaled.clone(), Some(metadata.clone()))?;
+        self.local_store
+            .put(&routing_key, marshaled.clone(), Some(metadata.clone()))?;
 
         tracing::info!(
             "Published IPNS record for key '{}' with sequence {}",
@@ -213,16 +213,15 @@ impl Ipns for IpnsImpl {
             // Publish to all routers in parallel
             let routing_key_clone = routing_key.clone();
             let marshaled_clone = marshaled.clone();
-            
-            let publish_futures: Vec<_> = self.routers
+
+            let publish_futures: Vec<_> = self
+                .routers
                 .iter()
                 .map(|router| {
                     let routing_key = routing_key_clone.clone();
                     let marshaled = marshaled_clone.clone();
                     let put_opts = put_options.clone();
-                    async move {
-                        router.put(&routing_key, &marshaled, put_opts).await
-                    }
+                    async move { router.put(&routing_key, &marshaled, put_opts).await }
                 })
                 .collect();
 
@@ -287,7 +286,7 @@ impl Ipns for IpnsImpl {
     async fn unpublish(&self, key_name: &str) -> Result<(), IpnsError> {
         // Export the public key
         let public_key = self.keychain.export_public_key(key_name)?;
-        
+
         // Generate routing key
         let routing_key = routing_key_from_public_key(&public_key);
 
@@ -363,12 +362,9 @@ impl IpnsImpl {
                 }
 
                 // Perform republish check
-                if let Err(e) = Self::republish_check(
-                    &local_store,
-                    &keychain,
-                    &routers,
-                    concurrency,
-                ).await {
+                if let Err(e) =
+                    Self::republish_check(&local_store, &keychain, &routers, concurrency).await
+                {
                     tracing::warn!("Republish check failed: {}", e);
                 }
             }
@@ -388,14 +384,15 @@ impl IpnsImpl {
     ) -> Result<(), IpnsError> {
         // Get all records from local store
         let records = local_store.list();
-        
+
         if records.is_empty() {
             return Ok(());
         }
 
         tracing::debug!("Checking {} records for republish", records.len());
 
-        let mut republish_tasks: Vec<Pin<Box<dyn Future<Output = Result<(), IpnsError>> + Send>>> = Vec::new();
+        let mut republish_tasks: Vec<Pin<Box<dyn Future<Output = Result<(), IpnsError>> + Send>>> =
+            Vec::new();
 
         for (routing_key, stored) in records {
             // Check if record needs republishing
@@ -404,10 +401,7 @@ impl IpnsImpl {
                     continue;
                 }
 
-                tracing::info!(
-                    "Record for key '{}' needs republishing",
-                    metadata.key_name
-                );
+                tracing::info!("Record for key '{}' needs republishing", metadata.key_name);
 
                 // Parse the record
                 let record = match Self::unmarshal_record_static(&stored.record) {
@@ -529,9 +523,7 @@ impl IpnsImpl {
                     let routing_key_ref = routing_key.clone();
                     let marshaled = marshaled_clone.clone();
                     let put_opts = put_options.clone();
-                    async move {
-                        router.put(&routing_key_ref, &marshaled, put_opts).await
-                    }
+                    async move { router.put(&routing_key_ref, &marshaled, put_opts).await }
                 })
                 .collect();
 
@@ -572,14 +564,11 @@ impl IpnsImpl {
         ttl_ns: u64,
     ) -> Result<IpnsRecord, IpnsError> {
         // Calculate validity (lifetime from now)
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap();
-        
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
         let validity_time = now + Duration::from_millis(lifetime_ms);
-        let validity = chrono::DateTime::<chrono::Utc>::from(
-            UNIX_EPOCH + validity_time
-        ).to_rfc3339();
+        let validity =
+            chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + validity_time).to_rfc3339();
 
         // Get public key bytes
         let public_key = keypair.public();
@@ -628,13 +617,13 @@ impl IpnsImpl {
         // However, if offline=true and nocache=true, we still need to check local store
         // since we have no other source of records
         let should_check_cache = !options.nocache || options.offline;
-        
+
         if should_check_cache && self.local_store.has(routing_key) {
             match self.local_store.get(routing_key) {
                 Ok(stored) => {
                     // Check if record is still valid (TTL hasn't expired)
                     let record = self.unmarshal_record(&stored.record)?;
-                    
+
                     if !record.is_expired() {
                         // Check TTL
                         let ttl_ms = record.ttl_ms();
@@ -662,20 +651,17 @@ impl IpnsImpl {
 
         // If we don't have a valid cached record and not offline, query routers
         if record_bytes.is_none() && !options.offline && !self.routers.is_empty() {
-            let get_options = GetOptions {
-                validate: true,
-            };
+            let get_options = GetOptions { validate: true };
 
             // Query all routers in parallel
             let routing_key_clone = routing_key.to_vec();
-            let query_futures: Vec<_> = self.routers
+            let query_futures: Vec<_> = self
+                .routers
                 .iter()
                 .map(|router| {
                     let routing_key = routing_key_clone.clone();
                     let get_opts = get_options.clone();
-                    async move {
-                        router.get(&routing_key, get_opts).await
-                    }
+                    async move { router.get(&routing_key, get_opts).await }
                 })
                 .collect();
 
@@ -709,16 +695,8 @@ impl IpnsImpl {
         // Parse the value to extract CID and path
         let (cid, path) = Self::parse_ipns_value(&record.value)?;
 
-        tracing::info!(
-            "Resolved IPNS record to CID {} with path '{}'",
-            cid,
-            path
-        );
+        tracing::info!("Resolved IPNS record to CID {} with path '{}'", cid, path);
 
-        Ok(ResolveResult {
-            cid,
-            path,
-            record,
-        })
+        Ok(ResolveResult { cid, path, record })
     }
 }

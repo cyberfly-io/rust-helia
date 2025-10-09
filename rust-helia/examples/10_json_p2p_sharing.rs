@@ -1,5 +1,5 @@
 //! JSON P2P Sharing Example
-//! 
+//!
 //! Demonstrates storing and retrieving JSON data over IPFS P2P network.
 //! Similar to JS Helia: `const j = json(helia); await j.add({hello: 'world'})`
 //!
@@ -7,14 +7,14 @@
 //! Terminal 1: cargo run --example 10_json_p2p_sharing -- store
 //! Terminal 2: cargo run --example 10_json_p2p_sharing -- get <CID>
 
-use rust_helia::create_helia;
-use helia_json::{json, JsonInterface};
-use helia_utils::{HeliaConfig, BlockstoreConfig};
 use helia_interface::Helia;
+use helia_json::{json, JsonInterface};
+use helia_utils::{BlockstoreConfig, HeliaConfig};
+use rust_helia::create_helia;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -32,7 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 2 {
         eprintln!("Usage:");
         eprintln!("  {} store              - Store JSON data", args[0]);
-        eprintln!("  {} get <CID>          - Retrieve JSON data from network", args[0]);
+        eprintln!(
+            "  {} get <CID>          - Retrieve JSON data from network",
+            args[0]
+        );
         return Ok(());
     }
 
@@ -81,7 +84,11 @@ async fn run_store() -> Result<(), Box<dyn std::error::Error>> {
     let user = UserData {
         name: "Alice".to_string(),
         age: 30,
-        languages: vec!["Rust".to_string(), "JavaScript".to_string(), "Python".to_string()],
+        languages: vec![
+            "Rust".to_string(),
+            "JavaScript".to_string(),
+            "Python".to_string(),
+        ],
         active: true,
     };
 
@@ -93,16 +100,19 @@ async fn run_store() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✅ JSON data stored successfully!");
     println!("🔑 CID: {}\n", cid);
-    
+
     println!("📋 To retrieve from NETWORK (different node), run in another terminal:");
-    println!("   cargo run --example 10_json_p2p_sharing -- get {}\n", cid);
-    
+    println!(
+        "   cargo run --example 10_json_p2p_sharing -- get {}\n",
+        cid
+    );
+
     println!("⏳ Keep this terminal running to serve data over P2P...");
     println!("   Press Ctrl+C to stop\n");
 
     // Keep the node running to serve blocks
     tokio::signal::ctrl_c().await?;
-    
+
     println!("\n🛑 Shutting down store node...");
 
     Ok(())

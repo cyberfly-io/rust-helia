@@ -6,8 +6,8 @@
 //! - Graceful shutdown on Ctrl+C
 //! - Accessing node components (blockstore, datastore, etc.)
 
-use rust_helia::create_helia;
 use helia_interface::Helia;
+use rust_helia::create_helia;
 use tokio::signal;
 
 #[tokio::main]
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Pins: available");
     println!("  - Routing: available");
     println!("  - DNS resolver: available");
-    
+
     if helia.metrics().is_some() {
         println!("  - Metrics: enabled");
     } else {
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Keep the node running until Ctrl+C is pressed
     println!("Node is running. Press Ctrl+C to stop...\n");
-    
+
     match signal::ctrl_c().await {
         Ok(()) => {
             println!("\n\nReceived shutdown signal...");
@@ -57,6 +57,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Node stopped\n");
 
     println!("Example completed successfully!");
-    
+
     Ok(())
 }

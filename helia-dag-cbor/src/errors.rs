@@ -1,7 +1,7 @@
 //! Error types for DAG-CBOR operations
 
-use thiserror::Error;
 use helia_interface::HeliaError;
+use thiserror::Error;
 
 /// Errors that can occur during DAG-CBOR operations
 #[derive(Error, Debug)]

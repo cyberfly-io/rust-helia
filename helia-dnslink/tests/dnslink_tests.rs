@@ -9,7 +9,9 @@ async fn test_factory_function() {
 #[tokio::test]
 async fn test_invalid_domain() {
     let dnslink = dns_link(DnsLinkInit::default()).unwrap();
-    let result = dnslink.resolve("this-domain-absolutely-does-not-exist-12345.com").await;
+    let result = dnslink
+        .resolve("this-domain-absolutely-does-not-exist-12345.com")
+        .await;
     assert!(result.is_err());
 }
 
@@ -44,7 +46,9 @@ async fn test_nocache_option() {
     };
     // Should not error just because of nocache
     // (will fail on domain lookup but that's expected)
-    let result = dnslink.resolve_with_options("nonexistent-test-domain-12345.com", options).await;
+    let result = dnslink
+        .resolve_with_options("nonexistent-test-domain-12345.com", options)
+        .await;
     assert!(result.is_err());
 }
 
@@ -54,14 +58,22 @@ async fn test_nocache_option() {
 #[ignore]
 async fn test_resolve_ipfs_tech_real() {
     let dnslink = dns_link(DnsLinkInit::default()).unwrap();
-    
+
     let result = dnslink.resolve("ipfs.tech").await;
-    
+
     match result {
-        Ok(DnsLinkResult::IPFS { cid, path, namespace, .. }) => {
+        Ok(DnsLinkResult::IPFS {
+            cid,
+            path,
+            namespace,
+            ..
+        }) => {
             println!("✅ Resolved ipfs.tech to CID: {}", cid);
             println!("   Namespace: {}", namespace);
-            println!("   Path: {}", if path.is_empty() { "<empty>" } else { &path });
+            println!(
+                "   Path: {}",
+                if path.is_empty() { "<empty>" } else { &path }
+            );
             assert_eq!(namespace, "ipfs");
         }
         Ok(other) => {
@@ -79,14 +91,22 @@ async fn test_resolve_ipfs_tech_real() {
 #[ignore]
 async fn test_resolve_docs_ipfs_tech_real() {
     let dnslink = dns_link(DnsLinkInit::default()).unwrap();
-    
+
     let result = dnslink.resolve("docs.ipfs.tech").await;
-    
+
     match result {
-        Ok(DnsLinkResult::IPFS { cid, path, namespace, .. }) => {
+        Ok(DnsLinkResult::IPFS {
+            cid,
+            path,
+            namespace,
+            ..
+        }) => {
             println!("✅ Resolved docs.ipfs.tech to CID: {}", cid);
             println!("   Namespace: {}", namespace);
-            println!("   Path: {}", if path.is_empty() { "<empty>" } else { &path });
+            println!(
+                "   Path: {}",
+                if path.is_empty() { "<empty>" } else { &path }
+            );
             assert_eq!(namespace, "ipfs");
         }
         Ok(other) => {
@@ -105,10 +125,10 @@ async fn test_resolve_docs_ipfs_tech_real() {
 #[ignore]
 async fn test_resolve_with_path() {
     let dnslink = dns_link(DnsLinkInit::default()).unwrap();
-    
+
     // Try ipfs.tech which is known to have dnslink
     let result = dnslink.resolve("ipfs.tech").await;
-    
+
     if let Ok(res) = result {
         println!("Resolution result: {:?}", res);
     }

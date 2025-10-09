@@ -32,17 +32,17 @@
 //! }
 //! ```
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
-use prost::Message;
 use futures::stream;
+use prost::Message;
+use std::sync::Arc;
 
-use helia_interface::{Helia, AwaitIterable};
-use crate::*;
-use crate::pb::{Data, data};
 use crate::dag_pb::PBNode;
+use crate::pb::{data, Data};
+use crate::*;
+use helia_interface::{AwaitIterable, Helia};
 
 /// DAG-PB codec identifier
 const DAG_PB_CODE: u64 = 0x70;
@@ -95,9 +95,7 @@ impl UnixFS {
     /// let fs = UnixFS::new(Arc::new(helia_node));
     /// ```
     pub fn new(helia: Arc<dyn Helia>) -> Self {
-        Self {
-            helia,
-        }
+        Self { helia }
     }
 
     /// Creates a CID for RAW codec data
@@ -106,13 +104,13 @@ impl UnixFS {
         let mut hash_bytes = [0u8; 32];
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         let hash_value = hasher.finish();
         hash_bytes[0..8].copy_from_slice(&hash_value.to_be_bytes());
         hash_bytes[8..16].copy_from_slice(&(data.len() as u64).to_be_bytes());
-        
+
         for (i, &byte) in data.iter().take(16).enumerate() {
             hash_bytes[16 + i] = byte;
         }
@@ -129,13 +127,13 @@ impl UnixFS {
         let mut hash_bytes = [0u8; 32];
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         let hash_value = hasher.finish();
         hash_bytes[0..8].copy_from_slice(&hash_value.to_be_bytes());
         hash_bytes[8..16].copy_from_slice(&(data.len() as u64).to_be_bytes());
-        
+
         for (i, &byte) in data.iter().take(16).enumerate() {
             hash_bytes[16 + i] = byte;
         }
@@ -153,20 +151,30 @@ impl UnixFS {
         } else {
             self.create_dag_pb_cid(&data)?
         };
-        
+
         self.helia.blockstore().put(&cid, data, None).await?;
         Ok(cid)
     }
 
     /// Retrieves a block from the blockstore
     async fn get_block(&self, cid: &Cid) -> Result<Bytes, UnixFSError> {
-        self.helia.blockstore().get(cid, None).await.map_err(|e| e.into())
+        self.helia
+            .blockstore()
+            .get(cid, None)
+            .await
+            .map_err(|e| e.into())
     }
 
     /// Adds a small file (≤1MB) to the blockstore
     ///
     /// For files larger than the chunk size, use `add_chunked_file` instead.
-    async fn add_small_file(&self, data: Bytes, raw_leaves: bool, mode: Option<u32>, mtime: Option<UnixFSTime>) -> Result<Cid, UnixFSError> {
+    async fn add_small_file(
+        &self,
+        data: Bytes,
+        raw_leaves: bool,
+        mode: Option<u32>,
+        mtime: Option<UnixFSTime>,
+    ) -> Result<Cid, UnixFSError> {
         if raw_leaves {
             return self.put_block(data, RAW_CODE).await;
         }
@@ -184,11 +192,13 @@ impl UnixFS {
         };
 
         let mut unixfs_bytes = Vec::new();
-        unixfs_data.encode(&mut unixfs_bytes)
+        unixfs_data
+            .encode(&mut unixfs_bytes)
             .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
         let pb_node = PBNode::with_data(Bytes::from(unixfs_bytes));
-        let pb_bytes = pb_node.encode()
+        let pb_bytes = pb_node
+            .encode()
             .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
 
         self.put_block(pb_bytes, DAG_PB_CODE).await
@@ -206,7 +216,14 @@ impl UnixFS {
     /// * `raw_leaves` - Whether to store chunks as RAW blocks (true) or wrapped in UnixFS (false)
     /// * `mode` - Optional file mode/permissions
     /// * `mtime` - Optional modification time
-    async fn add_chunked_file(&self, data: Bytes, chunk_size: usize, raw_leaves: bool, mode: Option<u32>, mtime: Option<UnixFSTime>) -> Result<Cid, UnixFSError> {
+    async fn add_chunked_file(
+        &self,
+        data: Bytes,
+        chunk_size: usize,
+        raw_leaves: bool,
+        mode: Option<u32>,
+        mtime: Option<UnixFSTime>,
+    ) -> Result<Cid, UnixFSError> {
         let total_size = data.len() as u64;
         let mut chunk_cids = Vec::new();
         let mut chunk_sizes = Vec::new();
@@ -231,11 +248,13 @@ impl UnixFS {
                 };
 
                 let mut chunk_unixfs_bytes = Vec::new();
-                chunk_unixfs.encode(&mut chunk_unixfs_bytes)
+                chunk_unixfs
+                    .encode(&mut chunk_unixfs_bytes)
                     .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
                 let chunk_pb = PBNode::with_data(Bytes::from(chunk_unixfs_bytes));
-                let chunk_pb_bytes = chunk_pb.encode()
+                let chunk_pb_bytes = chunk_pb
+                    .encode()
                     .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
 
                 self.put_block(chunk_pb_bytes, DAG_PB_CODE).await?
@@ -260,17 +279,19 @@ impl UnixFS {
         };
 
         let mut root_unixfs_bytes = Vec::new();
-        root_unixfs.encode(&mut root_unixfs_bytes)
+        root_unixfs
+            .encode(&mut root_unixfs_bytes)
             .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
         let mut root_pb = PBNode::with_data(Bytes::from(root_unixfs_bytes));
-        
+
         // Add links to chunks
         for (i, (cid, size)) in chunk_cids.iter().zip(chunk_sizes.iter()).enumerate() {
             root_pb.add_link(Some(format!("chunk-{}", i)), *cid, *size);
         }
 
-        let root_pb_bytes = root_pb.encode()
+        let root_pb_bytes = root_pb
+            .encode()
             .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
 
         self.put_block(root_pb_bytes, DAG_PB_CODE).await
@@ -279,33 +300,54 @@ impl UnixFS {
 
 #[async_trait]
 impl UnixFSInterface for UnixFS {
-    async fn add_bytes(&self, bytes: Bytes, options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
+    async fn add_bytes(
+        &self,
+        bytes: Bytes,
+        options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let raw_leaves = options.as_ref().map(|o| o.raw_leaves).unwrap_or(false);
-        let chunk_size = options.as_ref().and_then(|o| o.chunk_size).unwrap_or(1_048_576); // Default 1MB
+        let chunk_size = options
+            .as_ref()
+            .and_then(|o| o.chunk_size)
+            .unwrap_or(1_048_576); // Default 1MB
 
         // Use chunking for files larger than chunk_size
         if bytes.len() > chunk_size {
-            self.add_chunked_file(bytes, chunk_size, raw_leaves, None, None).await
+            self.add_chunked_file(bytes, chunk_size, raw_leaves, None, None)
+                .await
         } else {
             self.add_small_file(bytes, raw_leaves, None, None).await
         }
     }
 
-    async fn add_file(&self, file: FileCandidate, options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
+    async fn add_file(
+        &self,
+        file: FileCandidate,
+        options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let raw_leaves = options.as_ref().map(|o| o.raw_leaves).unwrap_or(false);
-        let chunk_size = options.as_ref().and_then(|o| o.chunk_size).unwrap_or(1_048_576); // Default 1MB
+        let chunk_size = options
+            .as_ref()
+            .and_then(|o| o.chunk_size)
+            .unwrap_or(1_048_576); // Default 1MB
 
         // Use chunking for files larger than chunk_size
         if file.content.len() > chunk_size {
-            self.add_chunked_file(file.content, chunk_size, raw_leaves, file.mode, file.mtime).await
+            self.add_chunked_file(file.content, chunk_size, raw_leaves, file.mode, file.mtime)
+                .await
         } else {
-            self.add_small_file(file.content, raw_leaves, file.mode, file.mtime).await
+            self.add_small_file(file.content, raw_leaves, file.mode, file.mtime)
+                .await
         }
     }
 
-    async fn add_directory(&self, dir: Option<DirectoryCandidate>, _options: Option<AddOptions>) -> Result<Cid, UnixFSError> {
+    async fn add_directory(
+        &self,
+        dir: Option<DirectoryCandidate>,
+        _options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let (mode, mtime) = dir.map(|d| (d.mode, d.mtime)).unwrap_or((None, None));
-        
+
         let dir_unixfs = Data {
             r#type: data::DataType::Directory as i32,
             mode: mode.unwrap_or(0),
@@ -317,11 +359,13 @@ impl UnixFSInterface for UnixFS {
         };
 
         let mut dir_bytes = Vec::new();
-        dir_unixfs.encode(&mut dir_bytes)
+        dir_unixfs
+            .encode(&mut dir_bytes)
             .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
         let pb_node = PBNode::with_data(Bytes::from(dir_bytes));
-        let pb_bytes = pb_node.encode()
+        let pb_bytes = pb_node
+            .encode()
             .map_err(|e| UnixFSError::other(format!("DAG-PB error: {}", e)))?;
 
         self.put_block(pb_bytes, DAG_PB_CODE).await
@@ -382,7 +426,13 @@ impl UnixFSInterface for UnixFS {
         }
     }
 
-    async fn cp(&self, source: &Cid, target: &Cid, name: &str, _options: Option<CpOptions>) -> Result<Cid, UnixFSError> {
+    async fn cp(
+        &self,
+        source: &Cid,
+        target: &Cid,
+        name: &str,
+        _options: Option<CpOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let target_block = self.get_block(target).await?;
         let mut target_pb = PBNode::decode(&target_block)
             .map_err(|e| UnixFSError::other(format!("Decode error: {}", e)))?;
@@ -410,13 +460,18 @@ impl UnixFSInterface for UnixFS {
 
         target_pb.add_link(Some(name.to_string()), *source, source_size);
 
-        let new_target_bytes = target_pb.encode()
+        let new_target_bytes = target_pb
+            .encode()
             .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
         self.put_block(new_target_bytes, DAG_PB_CODE).await
     }
 
-    async fn ls(&self, cid: &Cid, _options: Option<LsOptions>) -> Result<AwaitIterable<UnixFSEntry>, UnixFSError> {
+    async fn ls(
+        &self,
+        cid: &Cid,
+        _options: Option<LsOptions>,
+    ) -> Result<AwaitIterable<UnixFSEntry>, UnixFSError> {
         let block = self.get_block(cid).await?;
         let pb_node = PBNode::decode(&block)
             .map_err(|e| UnixFSError::other(format!("Decode error: {}", e)))?;
@@ -430,28 +485,29 @@ impl UnixFSInterface for UnixFS {
                 } else {
                     // Try to get the block and decode to determine type
                     match self.get_block(&hash).await {
-                        Ok(link_block) => {
-                            match PBNode::decode(&link_block) {
-                                Ok(link_pb) => {
-                                    if let Some(unixfs_bytes) = link_pb.data {
-                                        match Data::decode(&unixfs_bytes[..]) {
-                                            Ok(unixfs_data) => {
-                                                match data::DataType::try_from(unixfs_data.r#type) {
-                                                    Ok(data::DataType::Directory) => UnixFSType::Directory,
-                                                    Ok(data::DataType::File) | Ok(data::DataType::Raw) => UnixFSType::File,
-                                                    Ok(data::DataType::Symlink) => UnixFSType::Symlink,
-                                                    _ => UnixFSType::File,
+                        Ok(link_block) => match PBNode::decode(&link_block) {
+                            Ok(link_pb) => {
+                                if let Some(unixfs_bytes) = link_pb.data {
+                                    match Data::decode(&unixfs_bytes[..]) {
+                                        Ok(unixfs_data) => {
+                                            match data::DataType::try_from(unixfs_data.r#type) {
+                                                Ok(data::DataType::Directory) => {
+                                                    UnixFSType::Directory
                                                 }
+                                                Ok(data::DataType::File)
+                                                | Ok(data::DataType::Raw) => UnixFSType::File,
+                                                Ok(data::DataType::Symlink) => UnixFSType::Symlink,
+                                                _ => UnixFSType::File,
                                             }
-                                            _ => UnixFSType::File,
                                         }
-                                    } else {
-                                        UnixFSType::File
+                                        _ => UnixFSType::File,
                                     }
+                                } else {
+                                    UnixFSType::File
                                 }
-                                _ => UnixFSType::File,
                             }
-                        }
+                            _ => UnixFSType::File,
+                        },
                         _ => UnixFSType::File,
                     }
                 };
@@ -470,25 +526,42 @@ impl UnixFSInterface for UnixFS {
         Ok(Box::pin(stream::iter(entries)))
     }
 
-    async fn mkdir(&self, cid: &Cid, dirname: &str, _options: Option<MkdirOptions>) -> Result<Cid, UnixFSError> {
+    async fn mkdir(
+        &self,
+        cid: &Cid,
+        dirname: &str,
+        _options: Option<MkdirOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let new_dir_cid = self.add_directory(None, None).await?;
         self.cp(&new_dir_cid, cid, dirname, None).await
     }
 
-    async fn rm(&self, cid: &Cid, path: &str, _options: Option<RmOptions>) -> Result<Cid, UnixFSError> {
+    async fn rm(
+        &self,
+        cid: &Cid,
+        path: &str,
+        _options: Option<RmOptions>,
+    ) -> Result<Cid, UnixFSError> {
         let block = self.get_block(cid).await?;
         let mut pb_node = PBNode::decode(&block)
             .map_err(|e| UnixFSError::other(format!("Decode error: {}", e)))?;
 
-        pb_node.links.retain(|link| link.name.as_ref().map(|n| n != path).unwrap_or(true));
+        pb_node
+            .links
+            .retain(|link| link.name.as_ref().map(|n| n != path).unwrap_or(true));
 
-        let new_bytes = pb_node.encode()
+        let new_bytes = pb_node
+            .encode()
             .map_err(|e| UnixFSError::other(format!("Encode error: {}", e)))?;
 
         self.put_block(new_bytes, DAG_PB_CODE).await
     }
 
-    async fn stat(&self, cid: &Cid, _options: Option<StatOptions>) -> Result<UnixFSStat, UnixFSError> {
+    async fn stat(
+        &self,
+        cid: &Cid,
+        _options: Option<StatOptions>,
+    ) -> Result<UnixFSStat, UnixFSError> {
         let block = self.get_block(cid).await?;
 
         if cid.codec() == RAW_CODE {
@@ -521,7 +594,11 @@ impl UnixFSInterface for UnixFS {
                     size: unixfs_data.filesize,
                     blocks: pb_node.links.len() as u64 + 1,
                     type_,
-                    mode: if unixfs_data.mode != 0 { Some(unixfs_data.mode) } else { None },
+                    mode: if unixfs_data.mode != 0 {
+                        Some(unixfs_data.mode)
+                    } else {
+                        None
+                    },
                     mtime: None,
                     entries: pb_node.links.len() as u64,
                 }));
@@ -532,7 +609,11 @@ impl UnixFSInterface for UnixFS {
                 size: unixfs_data.filesize,
                 blocks: pb_node.links.len() as u64 + 1,
                 type_,
-                mode: if unixfs_data.mode != 0 { Some(unixfs_data.mode) } else { None },
+                mode: if unixfs_data.mode != 0 {
+                    Some(unixfs_data.mode)
+                } else {
+                    None
+                },
                 mtime: None,
             }))
         } else {

@@ -2,10 +2,10 @@
 
 mod dnslink;
 mod errors;
-mod resolver;
 mod namespaces;
+mod resolver;
 
-pub use dnslink::{DNSLink, dns_link, DnsLinkInit};
+pub use dnslink::{dns_link, DNSLink, DnsLinkInit};
 pub use errors::DnsLinkError;
 pub use resolver::{DnsResolver, TxtRecord};
 

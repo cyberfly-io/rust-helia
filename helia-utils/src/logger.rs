@@ -1,7 +1,7 @@
 //! Logger implementations
 
-use helia_interface::ComponentLogger;
 use crate::LoggerConfig;
+use helia_interface::ComponentLogger;
 
 /// Tracing-based logger implementation
 pub struct TracingLogger {

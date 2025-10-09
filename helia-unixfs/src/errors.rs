@@ -1,8 +1,8 @@
 //! UnixFS-specific error types
 
-use thiserror::Error;
 use cid::Cid;
 use helia_interface::HeliaError;
+use thiserror::Error;
 
 /// Base error type for UnixFS operations
 #[derive(Error, Debug)]
@@ -52,15 +52,21 @@ pub enum UnixFSError {
 
 impl UnixFSError {
     pub fn other(message: impl Into<String>) -> Self {
-        Self::Other { message: message.into() }
+        Self::Other {
+            message: message.into(),
+        }
     }
 
     pub fn invalid_parameters(reason: impl Into<String>) -> Self {
-        Self::InvalidParameters { reason: reason.into() }
+        Self::InvalidParameters {
+            reason: reason.into(),
+        }
     }
 
     pub fn invalid_pb_node(reason: impl Into<String>) -> Self {
-        Self::InvalidPBNode { reason: reason.into() }
+        Self::InvalidPBNode {
+            reason: reason.into(),
+        }
     }
 
     pub fn not_unixfs(cid: Cid) -> Self {
@@ -84,6 +90,8 @@ impl UnixFSError {
     }
 
     pub fn unsupported_type(type_name: impl Into<String>) -> Self {
-        Self::UnsupportedType { type_name: type_name.into() }
+        Self::UnsupportedType {
+            type_name: type_name.into(),
+        }
     }
 }

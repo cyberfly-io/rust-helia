@@ -6,12 +6,12 @@
 //! - Retrieving and decoding data
 //! - Working with custom types
 
-use rust_helia::create_helia;
-use helia_interface::Helia;
 use helia_dag_cbor::{DagCbor, DagCborInterface};
-use serde::{Serialize, Deserialize};
-use std::sync::Arc;
+use helia_interface::Helia;
+use rust_helia::create_helia;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 struct Person {
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let helia = Arc::new(create_helia(None).await?);
     helia.start().await?;
-    
+
     let dag = DagCbor::new(helia.clone());
 
     // 1. Store a simple structure
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         age: 30,
         email: "alice@example.com".to_string(),
     };
-    
+
     let person_cid = dag.add(&person, None).await?;
     println!("   ✓ Person CID: {}\n", person_cid);
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut metadata = HashMap::new();
     metadata.insert("published".to_string(), "2024-01-15".to_string());
     metadata.insert("category".to_string(), "Technology".to_string());
-    
+
     let blog_post = BlogPost {
         title: "Introduction to IPFS".to_string(),
         author: person.clone(),
@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         metadata,
     };
-    
+
     let post_cid = dag.add(&blog_post, None).await?;
     println!("   ✓ Blog post CID: {}\n", post_cid);
 
@@ -113,14 +113,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             email: "charlie@example.com".to_string(),
         },
     ];
-    
+
     let project = Project {
         name: "Helia Rust".to_string(),
         description: "A Rust implementation of Helia IPFS".to_string(),
         contributors,
         version: "0.1.0".to_string(),
     };
-    
+
     let project_cid = dag.add(&project, None).await?;
     println!("   ✓ Project CID: {}\n", project_cid);
 
@@ -137,6 +137,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     helia.stop().await?;
     println!("Example completed successfully!");
-    
+
     Ok(())
 }

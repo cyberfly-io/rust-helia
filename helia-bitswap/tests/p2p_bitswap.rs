@@ -1,7 +1,7 @@
 //! P2P Bitswap integration test
 //!
 //! This test validates end-to-end block exchange between two Helia nodes using Bitswap.
-//! 
+//!
 //! Test Scenario:
 //! - Node A (Provider): Stores blocks and announces them
 //! - Node B (Requester): Connects to Node A and retrieves blocks
@@ -15,13 +15,13 @@ use helia_utils::{BlockstoreConfig, SledBlockstore};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Helper to create a test CID from data
 fn create_test_cid(data: &[u8]) -> Cid {
-    use sha2::{Sha256, Digest};
     use multihash::Multihash;
-    
+    use sha2::{Digest, Sha256};
+
     let hash = Sha256::digest(data);
     let mh = Multihash::wrap(0x12, &hash).expect("Failed to create multihash");
     Cid::new_v1(0x55, mh)
@@ -40,7 +40,7 @@ async fn test_p2p_block_exchange() {
     // Test data
     let test_data = Bytes::from("Hello, Bitswap P2P World!");
     let cid = create_test_cid(&test_data);
-    
+
     info!("Test CID: {}", cid);
     info!("Test data: {} bytes", test_data.len());
 
@@ -50,15 +50,15 @@ async fn test_p2p_block_exchange() {
             path: Some("/tmp/helia-test-node-a".into()),
             ..Default::default()
         })
-        .expect("Failed to create blockstore A")
+        .expect("Failed to create blockstore A"),
     );
-    
+
     let blockstore_b = Arc::new(
         SledBlockstore::new(BlockstoreConfig {
             path: Some("/tmp/helia-test-node-b".into()),
             ..Default::default()
         })
-        .expect("Failed to create blockstore B")
+        .expect("Failed to create blockstore B"),
     );
 
     info!("Created blockstores");
@@ -68,14 +68,14 @@ async fn test_p2p_block_exchange() {
     let bitswap_a = Arc::new(
         Bitswap::new(blockstore_a.clone(), config_a)
             .await
-            .expect("Failed to create Bitswap A")
+            .expect("Failed to create Bitswap A"),
     );
 
     let config_b = BitswapConfig::default();
     let bitswap_b = Arc::new(
         Bitswap::new(blockstore_b.clone(), config_b)
             .await
-            .expect("Failed to create Bitswap B")
+            .expect("Failed to create Bitswap B"),
     );
 
     info!("Created Bitswap instances");
@@ -83,7 +83,7 @@ async fn test_p2p_block_exchange() {
     // Start both nodes
     bitswap_a.start().await.expect("Failed to start Bitswap A");
     bitswap_b.start().await.expect("Failed to start Bitswap B");
-    
+
     info!("Started Bitswap nodes");
 
     // Give nodes time to initialize
@@ -95,19 +95,16 @@ async fn test_p2p_block_exchange() {
         .put(&cid, test_data.clone(), None)
         .await
         .expect("Failed to store block in A");
-    
+
     debug!("Node A: Block stored successfully");
 
     // Node A: Announce the block
     info!("Node A: Announcing block");
     bitswap_a
-        .notify_new_blocks(
-            vec![(cid, test_data.clone())],
-            Default::default()
-        )
+        .notify_new_blocks(vec![(cid, test_data.clone())], Default::default())
         .await
         .expect("Failed to announce block");
-    
+
     debug!("Node A: Block announced");
 
     // Give time for announcement to propagate
@@ -125,21 +122,21 @@ async fn test_p2p_block_exchange() {
     match bitswap_b.want(&cid, want_options).await {
         Ok(received_data) => {
             info!("Node B: Block received! {} bytes", received_data.len());
-            
+
             // Verify data integrity
             assert_eq!(
                 received_data, test_data,
                 "Received data doesn't match original"
             );
-            
+
             info!("✅ SUCCESS: Block data matches original!");
-            
+
             // Verify it's now in Node B's blockstore
             let stored_data = blockstore_b
                 .get(&cid, None)
                 .await
                 .expect("Block should be in Node B's blockstore");
-            
+
             assert_eq!(stored_data, test_data, "Stored data doesn't match");
             info!("✅ SUCCESS: Block correctly stored in Node B's blockstore!");
         }
@@ -151,14 +148,20 @@ async fn test_p2p_block_exchange() {
     // Check statistics
     let stats_a = bitswap_a.stats().await;
     let stats_b = bitswap_b.stats().await;
-    
-    info!("Node A stats: sent={}, received={}", stats_a.blocks_sent, stats_a.blocks_received);
-    info!("Node B stats: sent={}, received={}", stats_b.blocks_sent, stats_b.blocks_received);
+
+    info!(
+        "Node A stats: sent={}, received={}",
+        stats_a.blocks_sent, stats_a.blocks_received
+    );
+    info!(
+        "Node B stats: sent={}, received={}",
+        stats_b.blocks_sent, stats_b.blocks_received
+    );
 
     // Stop both nodes
     bitswap_a.stop().await.expect("Failed to stop Bitswap A");
     bitswap_b.stop().await.expect("Failed to stop Bitswap B");
-    
+
     info!("Stopped Bitswap nodes");
     info!("=== P2P Bitswap Test Complete ===");
 }
@@ -176,8 +179,7 @@ async fn test_bitswap_local_retrieval() {
     let cid = create_test_cid(&test_data);
 
     let blockstore = Arc::new(
-        SledBlockstore::new(BlockstoreConfig::default())
-            .expect("Failed to create blockstore")
+        SledBlockstore::new(BlockstoreConfig::default()).expect("Failed to create blockstore"),
     );
 
     // Store block directly in blockstore
@@ -230,8 +232,7 @@ async fn test_bitswap_missing_block_timeout() {
     let cid = create_test_cid(&test_data);
 
     let blockstore = Arc::new(
-        SledBlockstore::new(BlockstoreConfig::default())
-            .expect("Failed to create blockstore")
+        SledBlockstore::new(BlockstoreConfig::default()).expect("Failed to create blockstore"),
     );
 
     let bitswap = Bitswap::new(blockstore, BitswapConfig::default())
@@ -251,7 +252,7 @@ async fn test_bitswap_missing_block_timeout() {
     };
 
     let start = std::time::Instant::now();
-    
+
     match bitswap.want(&cid, want_options).await {
         Ok(_) => {
             panic!("❌ FAILED: Should not have found non-existent block");
@@ -259,14 +260,14 @@ async fn test_bitswap_missing_block_timeout() {
         Err(e) => {
             let elapsed = start.elapsed();
             info!("Request timed out after {:?} with error: {:?}", elapsed, e);
-            
+
             // Should timeout around 5 seconds (allow some margin)
             assert!(
                 elapsed >= Duration::from_secs(4) && elapsed <= Duration::from_secs(35),
                 "Timeout should be around 5-30 seconds (WantList default), was {:?}",
                 elapsed
             );
-            
+
             info!("✅ SUCCESS: Timeout behavior correct");
         }
     }

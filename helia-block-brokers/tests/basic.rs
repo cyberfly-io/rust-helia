@@ -4,7 +4,7 @@ use helia_block_brokers::{BlockBroker, BrokerStats, ProviderType};
 fn test_provider_type() {
     let provider = ProviderType::Bitswap;
     assert_eq!(provider, ProviderType::Bitswap);
-    
+
     let provider2 = ProviderType::Gateway;
     assert_eq!(provider2, ProviderType::Gateway);
 }

@@ -39,8 +39,8 @@
 //! }
 //! ```
 
-pub mod json;
 pub mod errors;
+pub mod json;
 
 #[cfg(test)]
 mod tests;

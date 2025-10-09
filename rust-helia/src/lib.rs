@@ -2,8 +2,8 @@
 //!
 //! An implementation of IPFS in Rust
 //!
-//! This crate provides a `create_helia` function that returns an object implementing 
-//! the [`Helia`] trait. Pass it to other modules like `helia-unixfs` to make files 
+//! This crate provides a `create_helia` function that returns an object implementing
+//! the [`Helia`] trait. Pass it to other modules like `helia-unixfs` to make files
 //! available on the distributed web.
 //!
 //! ## Example
@@ -27,7 +27,9 @@
 use helia_utils::{HeliaConfig, HeliaImpl};
 
 pub use helia_interface::*;
-pub use helia_utils::{DatastoreConfig, BlockstoreConfig, LoggerConfig, create_swarm, create_swarm_with_keypair};
+pub use helia_utils::{
+    create_swarm, create_swarm_with_keypair, BlockstoreConfig, DatastoreConfig, LoggerConfig,
+};
 
 /// Create a new Helia node with the given configuration
 ///

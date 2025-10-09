@@ -6,11 +6,13 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
-use helia_bitswap::{Bitswap, WantOptions, NotifyOptions};
+use helia_bitswap::{Bitswap, NotifyOptions, WantOptions};
 use helia_interface::{
-    blocks::{Blocks, GetBlockOptions, PutBlockOptions, GetManyOptions, GetAllOptions, 
-             PutManyOptions, HasOptions, DeleteManyOptions, Pair, InputPair},
-    HeliaError, AwaitIterable,
+    blocks::{
+        Blocks, DeleteManyOptions, GetAllOptions, GetBlockOptions, GetManyOptions, HasOptions,
+        InputPair, Pair, PutBlockOptions, PutManyOptions,
+    },
+    AwaitIterable, HeliaError,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,11 +47,7 @@ impl BlockstoreWithBitswap {
 
 #[async_trait]
 impl Blocks for BlockstoreWithBitswap {
-    async fn get(
-        &self,
-        cid: &Cid,
-        options: Option<GetBlockOptions>,
-    ) -> Result<Bytes, HeliaError> {
+    async fn get(&self, cid: &Cid, options: Option<GetBlockOptions>) -> Result<Bytes, HeliaError> {
         debug!("BlockstoreWithBitswap: get() called for CID: {}", cid);
 
         // Try local blockstore first (fast path)
@@ -132,11 +130,7 @@ impl Blocks for BlockstoreWithBitswap {
         }
     }
 
-    async fn has(
-        &self,
-        cid: &Cid,
-        options: Option<HasOptions>,
-    ) -> Result<bool, HeliaError> {
+    async fn has(&self, cid: &Cid, options: Option<HasOptions>) -> Result<bool, HeliaError> {
         // Only check local blockstore
         // We don't query the network for has() to avoid unnecessary traffic
         self.local.has(cid, options).await

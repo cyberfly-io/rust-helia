@@ -8,12 +8,12 @@
 //! - Listing directory contents
 //! - Getting file statistics
 
-use rust_helia::create_helia;
+use bytes::Bytes;
+use futures::StreamExt;
 use helia_interface::Helia;
 use helia_unixfs::{UnixFS, UnixFSInterface, UnixFSStat};
-use bytes::Bytes;
+use rust_helia::create_helia;
 use std::sync::Arc;
-use futures::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let helia = Arc::new(create_helia(None).await?);
     helia.start().await?;
-    
+
     let fs = UnixFS::new(helia.clone());
 
     // 1. Add a simple file
@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. Add multiple files to the directory
     println!("5. Adding files to directory...");
-    
+
     let file1_data = Bytes::from("This is file 1");
     let file1_cid = fs.add_bytes(file1_data, None).await?;
     let dir_cid = fs.cp(&file1_cid, &dir_cid, "file1.txt", None).await?;

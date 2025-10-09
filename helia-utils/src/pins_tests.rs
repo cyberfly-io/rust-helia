@@ -2,20 +2,21 @@
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use bytes::Bytes;
     use cid::Cid;
     use futures::StreamExt;
-    use helia_interface::{Pins, AddOptions, LsOptions, RmOptions, IsPinnedOptions};
     use helia_interface::pins::{Pin, PinMetadataValue};
-    
-    use crate::{DatastoreConfig, SledDatastore, SimplePins};
+    use helia_interface::{AddOptions, IsPinnedOptions, LsOptions, Pins, RmOptions};
+    use std::collections::HashMap;
+
+    use crate::{DatastoreConfig, SimplePins, SledDatastore};
 
     fn create_test_datastore() -> SledDatastore {
-        SledDatastore::new(DatastoreConfig { 
-            path: None, 
-            create_if_missing: true 
-        }).unwrap()
+        SledDatastore::new(DatastoreConfig {
+            path: None,
+            create_if_missing: true,
+        })
+        .unwrap()
     }
 
     fn create_test_pins() -> SimplePins {
@@ -26,10 +27,9 @@ mod tests {
     fn create_test_cid() -> Cid {
         let hash_bytes = [
             0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
-            0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 
-            0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a, 0xd0, 0x15,
-            0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c,
-            0xd1, 0x5d, 0x6c, 0x15, 0xb0, 0xf0, 0x0a, 0x08
+            0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a,
+            0xd0, 0x15, 0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c, 0xd1, 0x5d, 0x6c, 0x15,
+            0xb0, 0xf0, 0x0a, 0x08,
         ];
         let mh = multihash::Multihash::from_bytes(&hash_bytes).unwrap();
         Cid::new_v1(0x55, mh)
@@ -38,10 +38,9 @@ mod tests {
     fn create_test_cid_2() -> Cid {
         let hash_bytes = [
             0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
-            0xef, 0x53, 0x7f, 0x25, 0xc8, 0x95, 0xbf, 0xa7,
-            0x82, 0x52, 0x65, 0x29, 0xa9, 0xb6, 0x3d, 0x97,
-            0xaa, 0x63, 0x15, 0x64, 0xd5, 0xd7, 0x89, 0xc2,
-            0xb7, 0x65, 0x44, 0x8c, 0x86, 0x35, 0xfb, 0x6c
+            0xef, 0x53, 0x7f, 0x25, 0xc8, 0x95, 0xbf, 0xa7, 0x82, 0x52, 0x65, 0x29, 0xa9, 0xb6,
+            0x3d, 0x97, 0xaa, 0x63, 0x15, 0x64, 0xd5, 0xd7, 0x89, 0xc2, 0xb7, 0x65, 0x44, 0x8c,
+            0x86, 0x35, 0xfb, 0x6c,
         ];
         let mh = multihash::Multihash::from_bytes(&hash_bytes).unwrap();
         Cid::new_v1(0x55, mh)
@@ -68,7 +67,10 @@ mod tests {
         let cid = create_test_cid();
 
         let mut metadata = HashMap::new();
-        metadata.insert("source".to_string(), PinMetadataValue::String("test".to_string()));
+        metadata.insert(
+            "source".to_string(),
+            PinMetadataValue::String("test".to_string()),
+        );
         metadata.insert("priority".to_string(), PinMetadataValue::Number(1.0));
         metadata.insert("recursive".to_string(), PinMetadataValue::Boolean(true));
 
@@ -85,16 +87,28 @@ mod tests {
         assert!(pins.is_pinned(&cid, None).await.unwrap());
 
         // List and verify metadata
-        let ls_options = LsOptions { cid: Some(cid), ..Default::default() };
+        let ls_options = LsOptions {
+            cid: Some(cid),
+            ..Default::default()
+        };
         let mut stream = pins.ls(Some(ls_options)).await.unwrap();
-        
+
         let pin = stream.next().await.unwrap();
         assert_eq!(pin.cid, cid);
         assert_eq!(pin.depth, 5);
         assert_eq!(pin.metadata.len(), 3);
-        assert_eq!(pin.metadata.get("source"), Some(&PinMetadataValue::String("test".to_string())));
-        assert_eq!(pin.metadata.get("priority"), Some(&PinMetadataValue::Number(1.0)));
-        assert_eq!(pin.metadata.get("recursive"), Some(&PinMetadataValue::Boolean(true)));
+        assert_eq!(
+            pin.metadata.get("source"),
+            Some(&PinMetadataValue::String("test".to_string()))
+        );
+        assert_eq!(
+            pin.metadata.get("priority"),
+            Some(&PinMetadataValue::Number(1.0))
+        );
+        assert_eq!(
+            pin.metadata.get("recursive"),
+            Some(&PinMetadataValue::Boolean(true))
+        );
     }
 
     #[tokio::test]
@@ -145,7 +159,10 @@ mod tests {
         pins.add(&cid2, None).await.unwrap();
 
         // List pins filtered by cid1
-        let ls_options = LsOptions { cid: Some(cid1), ..Default::default() };
+        let ls_options = LsOptions {
+            cid: Some(cid1),
+            ..Default::default()
+        };
         let mut stream = pins.ls(Some(ls_options)).await.unwrap();
         let mut results = Vec::new();
         while let Some(pin) = stream.next().await {
@@ -166,7 +183,10 @@ mod tests {
         pins.add(&cid1, None).await.unwrap();
 
         // Try to list pins for cid2 (not pinned)
-        let ls_options = LsOptions { cid: Some(cid2), ..Default::default() };
+        let ls_options = LsOptions {
+            cid: Some(cid2),
+            ..Default::default()
+        };
         let mut stream = pins.ls(Some(ls_options)).await.unwrap();
         let mut results = Vec::new();
         while let Some(pin) = stream.next().await {
@@ -185,9 +205,12 @@ mod tests {
         pins.add(&cid, None).await.unwrap();
 
         // List and verify default depth
-        let ls_options = LsOptions { cid: Some(cid), ..Default::default() };
+        let ls_options = LsOptions {
+            cid: Some(cid),
+            ..Default::default()
+        };
         let mut stream = pins.ls(Some(ls_options)).await.unwrap();
-        
+
         let pin = stream.next().await.unwrap();
         assert_eq!(pin.cid, cid);
         assert_eq!(pin.depth, u64::MAX); // Default infinite depth

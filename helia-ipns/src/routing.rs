@@ -3,9 +3,11 @@
 use crate::errors::IpnsError;
 use crate::local_store::RecordMetadata;
 use async_trait::async_trait;
-use libp2p::kad::{Behaviour as Kademlia, store::MemoryStore, Mode, Record as KadRecord, RecordKey, Quorum};
-use libp2p::swarm::{Swarm, NetworkBehaviour};
-use libp2p::{identity, noise, tcp, yamux, PeerId, Multiaddr};
+use libp2p::kad::{
+    store::MemoryStore, Behaviour as Kademlia, Mode, Quorum, Record as KadRecord, RecordKey,
+};
+use libp2p::swarm::{NetworkBehaviour, Swarm};
+use libp2p::{identity, noise, tcp, yamux, Multiaddr, PeerId};
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -65,11 +67,7 @@ pub trait IpnsRouting: Send + Sync + fmt::Debug {
     /// # Arguments
     /// * `routing_key` - The routing key to look up
     /// * `options` - Resolution options (validation, etc.)
-    async fn get(
-        &self,
-        routing_key: &[u8],
-        options: GetOptions,
-    ) -> Result<Vec<u8>, IpnsError>;
+    async fn get(&self, routing_key: &[u8], options: GetOptions) -> Result<Vec<u8>, IpnsError>;
 
     /// Get a human-readable name for this router (for debugging)
     fn name(&self) -> &str;
@@ -100,12 +98,10 @@ impl IpnsRouting for LocalRouter {
         Ok(())
     }
 
-    async fn get(
-        &self,
-        _routing_key: &[u8],
-        _options: GetOptions,
-    ) -> Result<Vec<u8>, IpnsError> {
-        Err(IpnsError::NotFound("Local router doesn't serve records".to_string()))
+    async fn get(&self, _routing_key: &[u8], _options: GetOptions) -> Result<Vec<u8>, IpnsError> {
+        Err(IpnsError::NotFound(
+            "Local router doesn't serve records".to_string(),
+        ))
     }
 
     fn name(&self) -> &str {
@@ -114,7 +110,7 @@ impl IpnsRouting for LocalRouter {
 }
 
 /// DHT router for IPNS record distribution via libp2p Kademlia DHT
-/// 
+///
 /// This router accepts a libp2p swarm instance, following the Helia pattern
 /// where the user manages their own libp2p configuration.
 pub struct DhtRouter {
@@ -135,35 +131,38 @@ impl fmt::Debug for DhtRouter {
 
 impl DhtRouter {
     /// Create a new DHT router with an existing libp2p swarm
-    /// 
+    ///
     /// This follows the Helia pattern where users manage their own libp2p instance.
     /// The swarm must be configured with a Kademlia behaviour.
-    /// 
+    ///
     /// # Arguments
     /// * `swarm` - A libp2p swarm configured with Kademlia DHT
     /// * `peer_id` - The local peer ID
-    /// 
+    ///
     /// # Example
     /// ```ignore
     /// // User creates and configures their own libp2p swarm
     /// let keypair = Keypair::generate_ed25519();
     /// let peer_id = PeerId::from(keypair.public());
-    /// 
+    ///
     /// let store = MemoryStore::new(peer_id);
     /// let kad = Kademlia::new(peer_id, store);
-    /// 
+    ///
     /// let swarm = SwarmBuilder::with_existing_identity(keypair)
     ///     .with_tokio()
     ///     .with_tcp(tcp::Config::default(), noise::Config::new, yamux::Config::default())?
     ///     .with_behaviour(|_| kad)?
     ///     .build();
-    /// 
+    ///
     /// // Pass the swarm to DhtRouter
     /// let router = DhtRouter::new(swarm, peer_id);
     /// ```
     pub fn new(swarm: Swarm<Kademlia<MemoryStore>>, peer_id: PeerId) -> Self {
-        tracing::info!("Creating DHT router with provided libp2p swarm, peer ID: {}", peer_id);
-        
+        tracing::info!(
+            "Creating DHT router with provided libp2p swarm, peer ID: {}",
+            peer_id
+        );
+
         Self {
             swarm: Arc::new(Mutex::new(swarm)),
             peer_id,
@@ -176,7 +175,7 @@ impl DhtRouter {
     }
 
     /// Get a reference to the swarm for advanced operations
-    /// 
+    ///
     /// This allows users to interact with the underlying libp2p swarm
     /// for operations not directly supported by the router
     pub fn swarm(&self) -> Arc<Mutex<Swarm<Kademlia<MemoryStore>>>> {
@@ -202,7 +201,7 @@ impl IpnsRouting for DhtRouter {
 
         // Convert routing key to RecordKey
         let record_key = RecordKey::new(&routing_key);
-        
+
         // Create a Kademlia record
         let record = KadRecord {
             key: record_key.clone(),
@@ -213,7 +212,9 @@ impl IpnsRouting for DhtRouter {
 
         // Put the record into the DHT
         let mut swarm = self.swarm.lock().await;
-        let query_id = swarm.behaviour_mut().put_record(record, Quorum::One)
+        let query_id = swarm
+            .behaviour_mut()
+            .put_record(record, Quorum::One)
             .map_err(|e| IpnsError::Other(format!("Failed to put record: {}", e)))?;
 
         tracing::debug!("DHT put initiated with query ID: {:?}", query_id);
@@ -226,16 +227,12 @@ impl IpnsRouting for DhtRouter {
         Ok(())
     }
 
-    async fn get(
-        &self,
-        routing_key: &[u8],
-        _options: GetOptions,
-    ) -> Result<Vec<u8>, IpnsError> {
+    async fn get(&self, routing_key: &[u8], _options: GetOptions) -> Result<Vec<u8>, IpnsError> {
         tracing::debug!("DHT router: resolving record from DHT");
 
         // Convert routing key to RecordKey
         let record_key = RecordKey::new(&routing_key);
-        
+
         // Query the DHT for the record
         let mut swarm = self.swarm.lock().await;
         let query_id = swarm.behaviour_mut().get_record(record_key.clone());
@@ -249,7 +246,7 @@ impl IpnsRouting for DhtRouter {
         // and return the found record. For now, we return NotFound.
         // This will be improved with proper event handling.
         Err(IpnsError::NotFound(
-            "DHT router: async query initiated, event handling needed".to_string()
+            "DHT router: async query initiated, event handling needed".to_string(),
         ))
     }
 
@@ -283,11 +280,7 @@ impl IpnsRouting for HttpRouter {
         Ok(())
     }
 
-    async fn get(
-        &self,
-        _routing_key: &[u8],
-        _options: GetOptions,
-    ) -> Result<Vec<u8>, IpnsError> {
+    async fn get(&self, _routing_key: &[u8], _options: GetOptions) -> Result<Vec<u8>, IpnsError> {
         // Stub: would query via HTTP
         tracing::debug!("HTTP router ({}): get called (stub)", self.endpoint);
         Err(IpnsError::NotFound("HTTP router is a stub".to_string()))

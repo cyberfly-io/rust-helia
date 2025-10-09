@@ -1,28 +1,28 @@
 //! Routing abstractions for Helia
-//! 
+//!
 //! Provides content routing (finding content) and peer routing (finding peers).
 
 pub mod delegated_http_routing;
 pub mod http_gateway_routing;
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use cid::Cid;
-use libp2p::PeerId;
 use helia_interface::Helia;
+use libp2p::PeerId;
+use std::sync::Arc;
 
 /// Errors that can occur during routing operations
 #[derive(Debug, thiserror::Error)]
 pub enum RoutingError {
     #[error("Content not found: {0}")]
     ContentNotFound(Cid),
-    
+
     #[error("Peer not found: {0}")]
     PeerNotFound(PeerId),
-    
+
     #[error("Routing failed: {0}")]
     RoutingFailed(String),
-    
+
     #[error("Timeout")]
     Timeout,
 }
@@ -32,7 +32,7 @@ pub enum RoutingError {
 pub struct ProviderInfo {
     /// Peer ID of the provider
     pub peer_id: PeerId,
-    
+
     /// Addresses where the peer can be reached
     pub addrs: Vec<libp2p::Multiaddr>,
 }
@@ -42,10 +42,10 @@ pub struct ProviderInfo {
 pub struct PeerInfo {
     /// The peer's ID
     pub peer_id: PeerId,
-    
+
     /// Known addresses for the peer
     pub addrs: Vec<libp2p::Multiaddr>,
-    
+
     /// Protocols supported by the peer
     pub protocols: Vec<String>,
 }
@@ -55,7 +55,7 @@ pub struct PeerInfo {
 pub trait ContentRouting: Send + Sync {
     /// Find providers for a given CID
     async fn find_providers(&self, cid: &Cid) -> Result<Vec<ProviderInfo>, RoutingError>;
-    
+
     /// Announce that we are providing content
     async fn provide(&self, cid: &Cid) -> Result<(), RoutingError>;
 }
@@ -75,9 +75,7 @@ pub struct Routers {
 impl Routers {
     /// Create a new Routers instance
     pub fn new(helia: Arc<dyn Helia>) -> Self {
-        Self {
-            _helia: helia,
-        }
+        Self { _helia: helia }
     }
 }
 
@@ -90,7 +88,7 @@ impl ContentRouting for Routers {
         // 3. Return combined results
         Ok(vec![])
     }
-    
+
     async fn provide(&self, _cid: &Cid) -> Result<(), RoutingError> {
         // In a full implementation, this would:
         // 1. Announce to the DHT that we have this content

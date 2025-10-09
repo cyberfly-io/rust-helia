@@ -139,12 +139,12 @@ mod tests {
         let roots = vec![Cid::default()];
         let mut blocks = HashMap::new();
         blocks.insert(Cid::default(), Bytes::from("test data"));
-        
+
         let options = ExportOptions {
             max_blocks: None,
             recursive: false,
         };
-        
+
         let result = strategy.select_blocks(&roots, &blocks, &options).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].cid, Cid::default());
@@ -156,12 +156,12 @@ mod tests {
         let roots = vec![Cid::default()];
         let mut blocks = HashMap::new();
         blocks.insert(Cid::default(), Bytes::from("test data"));
-        
+
         let options = ExportOptions {
             max_blocks: Some(0),
             recursive: false,
         };
-        
+
         let result = strategy.select_blocks(&roots, &blocks, &options).unwrap();
         assert_eq!(result.len(), 0);
     }
@@ -170,16 +170,16 @@ mod tests {
     fn test_filtered_export_strategy() {
         let allowed_cids = [Cid::default()].into_iter().collect();
         let strategy = FilteredExportStrategy::new(allowed_cids);
-        
+
         let roots = vec![Cid::default()];
         let mut blocks = HashMap::new();
         blocks.insert(Cid::default(), Bytes::from("test data"));
-        
+
         let options = ExportOptions {
             max_blocks: None,
             recursive: false,
         };
-        
+
         let result = strategy.select_blocks(&roots, &blocks, &options).unwrap();
         assert_eq!(result.len(), 1);
     }

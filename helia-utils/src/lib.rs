@@ -1,17 +1,17 @@
 //! # Helia Utils
 //!
 //! Shared utilities and implementations for the Helia IPFS implementation.
-//! 
+//!
 //! This crate provides concrete implementations of the traits defined in `helia-interface`,
 //! including the main `Helia` struct, blockstore implementations, and utility functions.
 
-pub mod helia;
 pub mod blockstore;
 pub mod blockstore_with_bitswap;
 pub mod datastore;
+pub mod helia;
+pub mod libp2p_behaviour;
 pub mod logger;
 pub mod metrics;
-pub mod libp2p_behaviour;
 
 #[cfg(test)]
 mod blockstore_tests;
@@ -21,13 +21,13 @@ mod pins_tests;
 
 use std::sync::Arc;
 
-pub use helia::{HeliaImpl, DummyRouting, SimplePins};
 pub use blockstore::SledBlockstore;
 pub use blockstore_with_bitswap::BlockstoreWithBitswap;
 pub use datastore::SledDatastore;
+pub use helia::{DummyRouting, HeliaImpl, SimplePins};
+pub use libp2p_behaviour::{create_swarm, create_swarm_with_keypair, HeliaBehaviour};
 pub use logger::TracingLogger;
 pub use metrics::SimpleMetrics;
-pub use libp2p_behaviour::{HeliaBehaviour, create_swarm, create_swarm_with_keypair};
 
 use libp2p::Swarm;
 use tokio::sync::Mutex;

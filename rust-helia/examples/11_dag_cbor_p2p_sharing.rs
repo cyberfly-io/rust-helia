@@ -1,5 +1,5 @@
 //! DAG-CBOR P2P Sharing Example
-//! 
+//!
 //! Demonstrates storing and retrieving DAG-CBOR data over IPFS P2P network.
 //! DAG-CBOR is a more compact binary format compared to JSON.
 //! Similar to JS Helia: `const cbor = dagCbor(helia); await cbor.add(data)`
@@ -8,14 +8,14 @@
 //! Terminal 1: cargo run --example 11_dag_cbor_p2p_sharing -- store
 //! Terminal 2: cargo run --example 11_dag_cbor_p2p_sharing -- get <CID>
 
-use rust_helia::create_helia;
 use helia_dag_cbor::{dag_cbor, DagCborInterface};
-use helia_utils::{HeliaConfig, BlockstoreConfig};
 use helia_interface::Helia;
+use helia_utils::{BlockstoreConfig, HeliaConfig};
+use rust_helia::create_helia;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -24,7 +24,7 @@ struct Document {
     version: u32,
     authors: Vec<String>,
     metadata: Metadata,
-    content: Vec<u8>,  // Binary data - more efficient in CBOR
+    content: Vec<u8>, // Binary data - more efficient in CBOR
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -42,7 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 2 {
         eprintln!("Usage:");
         eprintln!("  {} store              - Store DAG-CBOR data", args[0]);
-        eprintln!("  {} get <CID>          - Retrieve DAG-CBOR data from network", args[0]);
+        eprintln!(
+            "  {} get <CID>          - Retrieve DAG-CBOR data from network",
+            args[0]
+        );
         return Ok(());
     }
 
@@ -89,7 +92,7 @@ async fn run_store() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create sample binary document
     let content = b"This is binary content that will be efficiently stored in CBOR format!";
-    
+
     let document = Document {
         title: "Rust Helia DAG-CBOR Demo".to_string(),
         version: 1,
@@ -124,16 +127,19 @@ async fn run_store() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✅ DAG-CBOR data stored successfully!");
     println!("🔑 CID: {}\n", cid);
-    
+
     println!("📋 To retrieve from NETWORK (different node), run in another terminal:");
-    println!("   cargo run --example 11_dag_cbor_p2p_sharing -- get {}\n", cid);
-    
+    println!(
+        "   cargo run --example 11_dag_cbor_p2p_sharing -- get {}\n",
+        cid
+    );
+
     println!("⏳ Keep this terminal running to serve data over P2P...");
     println!("   Press Ctrl+C to stop\n");
 
     // Keep the node running to serve blocks
     tokio::signal::ctrl_c().await?;
-    
+
     println!("\n🛑 Shutting down store node...");
 
     Ok(())
@@ -180,8 +186,10 @@ async fn run_get(cid_str: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("   Created: {}", document.metadata.created);
     println!("   Tags: {:?}", document.metadata.tags);
     println!("   Content size: {} bytes", document.content.len());
-    println!("   Content preview: {}\n", 
-        String::from_utf8_lossy(&document.content[..50.min(document.content.len())]));
+    println!(
+        "   Content preview: {}\n",
+        String::from_utf8_lossy(&document.content[..50.min(document.content.len())])
+    );
 
     println!("🎉 P2P DAG-CBOR retrieval successful!");
     println!("   Data was fetched from the network, not from local storage!");

@@ -3,14 +3,13 @@
 
 use crate::{
     constants::*,
-    network_new::{Network, NetworkEvent, BitswapMessageEvent},
+    network_new::{Network, NetworkEvent},
     pb::{BitswapMessage as PbBitswapMessage, BlockPresenceType, WantType},
-    utils::{QueuedBitswapMessage, cid_to_prefix},
+    utils::QueuedBitswapMessage,
     Result,
 };
 use bytes::Bytes;
 use cid::Cid;
-use futures::StreamExt;
 use helia_interface::HeliaError;
 use libp2p::PeerId;
 use std::{
@@ -19,10 +18,10 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::{
-    sync::{mpsc, RwLock, oneshot},
+    sync::{oneshot, RwLock},
     time::sleep,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace};
 
 /// Entry in a wantlist
 #[derive(Debug, Clone)]
@@ -284,8 +283,8 @@ impl WantList {
             }
 
             if !message.is_empty() {
-                let encoded = self.network.send_message(peer, message).await?;
-                trace!("Sent want message to {} ({} bytes)", peer, encoded.len());
+                self.network.send_message(peer, message).await?;
+                trace!("Queued want message to {} via swarm", peer);
             }
         }
 
@@ -297,13 +296,8 @@ impl WantList {
         let mut message = QueuedBitswapMessage::new();
         message.add_want_block(&cid, priority);
 
-        let encoded = self.network.send_message(peer, message).await?;
-        trace!(
-            "Sent session want for {} to {} ({} bytes)",
-            cid,
-            peer,
-            encoded.len()
-        );
+        self.network.send_message(peer, message).await?;
+        trace!("Queued session want for {} to {}", cid, peer);
 
         Ok(())
     }
@@ -343,15 +337,12 @@ impl WantList {
                 let presence_type = BlockPresenceType::from(presence.r#type);
                 let has = matches!(presence_type, BlockPresenceType::HaveBlock);
 
-                debug!(
-                    "Received presence for {} from {}: has={}",
-                    cid, peer, has
-                );
+                debug!("Received presence for {} from {}: has={}", cid, peer, has);
 
                 // Notify wants about presence
                 if !has {
                     // Peer doesn't have the block
-                    if let Some(want) = wants.read().await.get(&cid) {
+                    if let Some(_want) = wants.read().await.get(&cid) {
                         // Could implement fallback to other peers here
                     }
                 }
@@ -374,6 +365,11 @@ impl WantList {
             })
             .collect()
     }
+
+    /// Dispatch a synthetic network event directly to the wantlist network
+    pub fn dispatch_event(&self, event: NetworkEvent) {
+        self.network.dispatch_event(event);
+    }
 }
 
 #[cfg(test)]
@@ -383,7 +379,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_wantlist_creation() {
-        let network = Arc::new(Network::new(NetworkInit::default()));
+        let sender_slot = Arc::new(RwLock::new(None));
+        let network = Arc::new(Network::new(NetworkInit::default(), sender_slot));
         let wantlist = WantList::new(network);
 
         let entries = wantlist.get_wantlist().await;
@@ -392,7 +389,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_peer() {
-        let network = Arc::new(Network::new(NetworkInit::default()));
+        let sender_slot = Arc::new(RwLock::new(None));
+        let network = Arc::new(Network::new(NetworkInit::default(), sender_slot));
         let wantlist = WantList::new(network);
 
         let peer = PeerId::random();

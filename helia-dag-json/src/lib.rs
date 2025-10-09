@@ -39,8 +39,8 @@
 //! }
 //! ```
 
-mod errors;
 mod dag_json;
+mod errors;
 
 #[cfg(test)]
 mod tests;
@@ -51,8 +51,8 @@ use serde::{Deserialize, Serialize};
 
 use helia_interface::AbortOptions;
 
-pub use errors::*;
 pub use dag_json::*;
+pub use errors::*;
 
 /// Options for adding JSON data
 #[derive(Debug, Clone, Default)]

@@ -257,10 +257,18 @@ pub trait Blocks: Send + Sync {
     ) -> Result<AwaitIterable<Result<Pair, HeliaError>>, HeliaError>;
 
     /// Retrieve all blocks from the blockstore
-    async fn get_all(&self, options: Option<GetAllOptions>) -> Result<AwaitIterable<Pair>, HeliaError>;
+    async fn get_all(
+        &self,
+        options: Option<GetAllOptions>,
+    ) -> Result<AwaitIterable<Pair>, HeliaError>;
 
     /// Store a block in the blockstore
-    async fn put(&self, cid: &Cid, block: Bytes, options: Option<PutBlockOptions>) -> Result<Cid, HeliaError>;
+    async fn put(
+        &self,
+        cid: &Cid,
+        block: Bytes,
+        options: Option<PutBlockOptions>,
+    ) -> Result<Cid, HeliaError>;
 
     /// Store multiple blocks in the blockstore
     async fn put_many_blocks(
@@ -270,11 +278,7 @@ pub trait Blocks: Send + Sync {
     ) -> Result<AwaitIterable<Cid>, HeliaError>;
 
     /// Check if blocks exist in the blockstore
-    async fn has(
-        &self,
-        cid: &Cid,
-        options: Option<HasOptions>,
-    ) -> Result<bool, HeliaError>;
+    async fn has(&self, cid: &Cid, options: Option<HasOptions>) -> Result<bool, HeliaError>;
 
     /// Check if multiple blocks exist in the blockstore
     async fn has_many_cids(

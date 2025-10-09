@@ -2,11 +2,11 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use sled::Db;
 use futures::stream;
+use sled::Db;
 
-use helia_interface::*;
 use crate::DatastoreConfig;
+use helia_interface::*;
 
 /// Sled-based datastore implementation
 pub struct SledDatastore {
@@ -16,12 +16,12 @@ pub struct SledDatastore {
 impl SledDatastore {
     pub fn new(config: DatastoreConfig) -> Result<Self, HeliaError> {
         let db = if let Some(path) = config.path {
-            sled::open(path).map_err(|e| HeliaError::datastore(format!("Failed to open datastore: {}", e)))?
+            sled::open(path)
+                .map_err(|e| HeliaError::datastore(format!("Failed to open datastore: {}", e)))?
         } else {
-            sled::Config::new()
-                .temporary(true)
-                .open()
-                .map_err(|e| HeliaError::datastore(format!("Failed to create temporary datastore: {}", e)))?
+            sled::Config::new().temporary(true).open().map_err(|e| {
+                HeliaError::datastore(format!("Failed to create temporary datastore: {}", e))
+            })?
         };
 
         Ok(Self { db })
@@ -61,7 +61,7 @@ impl Datastore for SledDatastore {
 
     async fn query(&self, prefix: Option<&[u8]>) -> Result<AwaitIterable<Bytes>, HeliaError> {
         let mut results = Vec::new();
-        
+
         if let Some(prefix) = prefix {
             // Iterate through keys with the given prefix
             for item in self.db.scan_prefix(prefix) {
@@ -87,7 +87,7 @@ impl Datastore for SledDatastore {
                 }
             }
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 }

@@ -6,9 +6,9 @@
 //! - Working with structured JSON objects
 //! - Serialization and deserialization
 
-use rust_helia::create_helia;
 use helia_interface::Helia;
 use helia_json::{Json, JsonInterface};
+use rust_helia::create_helia;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         age: 30,
         email: "alice@example.com".to_string(),
     };
-    
+
     let person_cid = json.add(&person, None).await?;
     println!("   ✓ Stored Person: {}", person_cid);
     println!("   Data: {:?}\n", person);
@@ -65,10 +65,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         title: "Getting Started with IPFS".to_string(),
         author: "Bob Johnson".to_string(),
         content: "IPFS is a distributed system for storing and accessing files...".to_string(),
-        tags: vec!["ipfs".to_string(), "web3".to_string(), "tutorial".to_string()],
+        tags: vec![
+            "ipfs".to_string(),
+            "web3".to_string(),
+            "tutorial".to_string(),
+        ],
         likes: 42,
     };
-    
+
     let post_cid = json.add(&blog_post, None).await?;
     println!("   ✓ Stored BlogPost: {}", post_cid);
     println!("   Title: {}", blog_post.title);
@@ -103,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             email: "eve@example.com".to_string(),
         },
     ];
-    
+
     let people_cid = json.add(&people, None).await?;
     println!("   ✓ Stored {} people: {}", people.len(), people_cid);
     for person in &people {
@@ -129,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "max_connections": 100
         }
     });
-    
+
     let json_cid = json.add(&json_data, None).await?;
     println!("   ✓ Stored JSON: {}", json_cid);
     println!("   Data: {}\n", serde_json::to_string_pretty(&json_data)?);

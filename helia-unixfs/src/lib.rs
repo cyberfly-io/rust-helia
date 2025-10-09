@@ -31,10 +31,10 @@
 //! }
 //! ```
 
-mod pb;
 pub mod chunker;
 pub mod dag_pb;
 pub mod errors;
+mod pb;
 pub mod unixfs;
 
 #[cfg(test)]
@@ -48,12 +48,12 @@ use bytes::Bytes;
 use cid::Cid;
 use serde::{Deserialize, Serialize};
 
-use helia_interface::{Helia, AwaitIterable};
+use helia_interface::{AwaitIterable, Helia};
 
-pub use errors::*;
-pub use pb::*;
 pub use chunker::*;
 pub use dag_pb::*;
+pub use errors::*;
+pub use pb::*;
 pub use unixfs::*;
 
 /// File statistics
@@ -187,31 +187,67 @@ pub struct StatOptions {
 #[async_trait]
 pub trait UnixFSInterface: Send + Sync {
     /// Add bytes as a file
-    async fn add_bytes(&self, bytes: Bytes, options: Option<AddOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn add_bytes(
+        &self,
+        bytes: Bytes,
+        options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// Add a file candidate
-    async fn add_file(&self, file: FileCandidate, options: Option<AddOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn add_file(
+        &self,
+        file: FileCandidate,
+        options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// Add a directory
-    async fn add_directory(&self, dir: Option<DirectoryCandidate>, options: Option<AddOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn add_directory(
+        &self,
+        dir: Option<DirectoryCandidate>,
+        options: Option<AddOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// Read file content
     async fn cat(&self, cid: &Cid, options: Option<CatOptions>) -> Result<Bytes, UnixFSError>;
-    
+
     /// Copy content to a directory
-    async fn cp(&self, source: &Cid, target: &Cid, name: &str, options: Option<CpOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn cp(
+        &self,
+        source: &Cid,
+        target: &Cid,
+        name: &str,
+        options: Option<CpOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// List directory contents
-    async fn ls(&self, cid: &Cid, options: Option<LsOptions>) -> Result<AwaitIterable<UnixFSEntry>, UnixFSError>;
-    
+    async fn ls(
+        &self,
+        cid: &Cid,
+        options: Option<LsOptions>,
+    ) -> Result<AwaitIterable<UnixFSEntry>, UnixFSError>;
+
     /// Create a directory in an existing directory
-    async fn mkdir(&self, cid: &Cid, dirname: &str, options: Option<MkdirOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn mkdir(
+        &self,
+        cid: &Cid,
+        dirname: &str,
+        options: Option<MkdirOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// Remove content from a directory
-    async fn rm(&self, cid: &Cid, path: &str, options: Option<RmOptions>) -> Result<Cid, UnixFSError>;
-    
+    async fn rm(
+        &self,
+        cid: &Cid,
+        path: &str,
+        options: Option<RmOptions>,
+    ) -> Result<Cid, UnixFSError>;
+
     /// Get file or directory statistics
-    async fn stat(&self, cid: &Cid, options: Option<StatOptions>) -> Result<UnixFSStat, UnixFSError>;
+    async fn stat(
+        &self,
+        cid: &Cid,
+        options: Option<StatOptions>,
+    ) -> Result<UnixFSStat, UnixFSError>;
 }
 
 /// Union type for file and directory statistics

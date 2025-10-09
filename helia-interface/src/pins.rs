@@ -116,5 +116,9 @@ pub trait Pins: Send + Sync {
     async fn ls(&self, options: Option<LsOptions>) -> Result<AwaitIterable<Pin>, HeliaError>;
 
     /// Check if a CID is pinned
-    async fn is_pinned(&self, cid: &Cid, options: Option<IsPinnedOptions>) -> Result<bool, HeliaError>;
+    async fn is_pinned(
+        &self,
+        cid: &Cid,
+        options: Option<IsPinnedOptions>,
+    ) -> Result<bool, HeliaError>;
 }

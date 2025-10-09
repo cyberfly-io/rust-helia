@@ -6,12 +6,12 @@
 //! - Listing all pins
 //! - Unpinning content
 
-use rust_helia::create_helia;
-use helia_interface::{Helia, Blocks, Pins};
-use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
-use std::sync::Arc;
 use futures::StreamExt;
+use helia_interface::{Blocks, Helia, Pins};
+use helia_unixfs::{UnixFS, UnixFSInterface};
+use rust_helia::create_helia;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let helia = Arc::new(create_helia(None).await?);
     helia.start().await?;
-    
+
     let fs = UnixFS::new(helia.clone());
 
     // 1. Create some content
@@ -27,11 +27,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file1 = Bytes::from("Important file that should be pinned");
     let cid1 = fs.add_bytes(file1, None).await?;
     println!("   ✓ File 1 CID: {}", cid1);
-    
+
     let file2 = Bytes::from("Another important file");
     let cid2 = fs.add_bytes(file2, None).await?;
     println!("   ✓ File 2 CID: {}", cid2);
-    
+
     let file3 = Bytes::from("Temporary file");
     let cid3 = fs.add_bytes(file3, None).await?;
     println!("   ✓ File 3 CID: {}\n", cid3);
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("2. Pinning files...");
     helia.pins().add(&cid1, None).await?;
     println!("   ✓ Pinned file 1");
-    
+
     helia.pins().add(&cid2, None).await?;
     println!("   ✓ Pinned file 2\n");
 
@@ -48,10 +48,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. Checking pin status...");
     let is_pinned_1 = helia.pins().is_pinned(&cid1, None).await?;
     println!("   File 1 is pinned: {}", is_pinned_1);
-    
+
     let is_pinned_2 = helia.pins().is_pinned(&cid2, None).await?;
     println!("   File 2 is pinned: {}", is_pinned_2);
-    
+
     let is_pinned_3 = helia.pins().is_pinned(&cid3, None).await?;
     println!("   File 3 is pinned: {}\n", is_pinned_3);
 
@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("4. Listing all pins...");
     let mut pin_stream = helia.pins().ls(None).await?;
     let mut pin_count = 0;
-    
+
     while let Some(pin) = pin_stream.next().await {
         pin_count += 1;
         println!("   - Pin {}: {}", pin_count, pin.cid);
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir_cid = fs.add_directory(None, None).await?;
     let dir_cid = fs.cp(&cid1, &dir_cid, "file1.txt", None).await?;
     let dir_cid = fs.cp(&cid2, &dir_cid, "file2.txt", None).await?;
-    
+
     helia.pins().add(&dir_cid, None).await?;
     println!("   ✓ Directory CID: {}", dir_cid);
     println!("   ✓ Directory pinned\n");
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("6. Unpinning file 1...");
     helia.pins().rm(&cid1, None).await?;
     println!("   ✓ File 1 unpinned");
-    
+
     let still_pinned = helia.pins().is_pinned(&cid1, None).await?;
     println!("   File 1 is still pinned: {}\n", still_pinned);
 
@@ -89,13 +89,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   File 1: {}", helia.pins().is_pinned(&cid1, None).await?);
     println!("   File 2: {}", helia.pins().is_pinned(&cid2, None).await?);
     println!("   File 3: {}", helia.pins().is_pinned(&cid3, None).await?);
-    println!("   Directory: {}\n", helia.pins().is_pinned(&dir_cid, None).await?);
+    println!(
+        "   Directory: {}\n",
+        helia.pins().is_pinned(&dir_cid, None).await?
+    );
 
     // 8. List all pins again
     println!("8. Final pin list:");
     let mut final_pins = helia.pins().ls(None).await?;
     let mut count = 0;
-    
+
     while let Some(pin) = final_pins.next().await {
         count += 1;
         println!("   - Pin {}: {}", count, pin.cid);
@@ -104,6 +107,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     helia.stop().await?;
     println!("Example completed successfully!");
-    
+
     Ok(())
 }

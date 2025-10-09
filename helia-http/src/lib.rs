@@ -1,25 +1,29 @@
 // Minimal HTTP-only Helia implementation
 
-use std::sync::Arc;
-use std::collections::HashMap;
 use async_trait::async_trait;
-use cid::Cid;
 use bytes::Bytes;
+use cid::Cid;
 use futures::stream;
-use tokio::sync::RwLock;
 use libp2p::PeerId;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use trust_dns_resolver::TokioAsyncResolver;
 
 use helia_interface::{
-    Blocks, HeliaError, Pins, Routing, ComponentLogger, Datastore, 
-    Helia, GcOptions, Metrics, Codec, Hasher
+    Blocks, Codec, ComponentLogger, Datastore, GcOptions, Hasher, Helia, HeliaError, Metrics, Pins,
+    Routing,
 };
 
 pub struct HttpBlocks;
 
 #[async_trait]
 impl Blocks for HttpBlocks {
-    async fn get(&self, cid: &Cid, _options: Option<helia_interface::GetBlockOptions>) -> Result<Bytes, HeliaError> {
+    async fn get(
+        &self,
+        cid: &Cid,
+        _options: Option<helia_interface::GetBlockOptions>,
+    ) -> Result<Bytes, HeliaError> {
         Err(HeliaError::other(format!("Block not found: {}", cid)))
     }
 
@@ -27,16 +31,25 @@ impl Blocks for HttpBlocks {
         &self,
         _cids: Vec<Cid>,
         _options: Option<helia_interface::GetManyOptions>,
-    ) -> Result<helia_interface::AwaitIterable<Result<helia_interface::Pair, HeliaError>>, HeliaError> {
+    ) -> Result<helia_interface::AwaitIterable<Result<helia_interface::Pair, HeliaError>>, HeliaError>
+    {
         let s = stream::iter(Vec::new());
         Ok(Box::pin(s))
     }
 
-    async fn get_all(&self, _options: Option<helia_interface::GetAllOptions>) -> Result<helia_interface::AwaitIterable<helia_interface::Pair>, HeliaError> {
+    async fn get_all(
+        &self,
+        _options: Option<helia_interface::GetAllOptions>,
+    ) -> Result<helia_interface::AwaitIterable<helia_interface::Pair>, HeliaError> {
         Err(HeliaError::other("get_all not supported"))
     }
 
-    async fn put(&self, cid: &Cid, _block: Bytes, _options: Option<helia_interface::PutBlockOptions>) -> Result<Cid, HeliaError> {
+    async fn put(
+        &self,
+        cid: &Cid,
+        _block: Bytes,
+        _options: Option<helia_interface::PutBlockOptions>,
+    ) -> Result<Cid, HeliaError> {
         Ok(*cid)
     }
 
@@ -49,7 +62,11 @@ impl Blocks for HttpBlocks {
         Ok(Box::pin(s))
     }
 
-    async fn has(&self, _cid: &Cid, _options: Option<helia_interface::HasOptions>) -> Result<bool, HeliaError> {
+    async fn has(
+        &self,
+        _cid: &Cid,
+        _options: Option<helia_interface::HasOptions>,
+    ) -> Result<bool, HeliaError> {
         Ok(false)
     }
 
@@ -76,20 +93,35 @@ pub struct HttpPins;
 
 #[async_trait]
 impl Pins for HttpPins {
-    async fn add(&self, _cid: &Cid, _options: Option<helia_interface::AddOptions>) -> Result<(), HeliaError> {
+    async fn add(
+        &self,
+        _cid: &Cid,
+        _options: Option<helia_interface::AddOptions>,
+    ) -> Result<(), HeliaError> {
         Err(HeliaError::other("pinning not supported"))
     }
 
-    async fn rm(&self, _cid: &Cid, _options: Option<helia_interface::RmOptions>) -> Result<(), HeliaError> {
+    async fn rm(
+        &self,
+        _cid: &Cid,
+        _options: Option<helia_interface::RmOptions>,
+    ) -> Result<(), HeliaError> {
         Err(HeliaError::other("rm not supported"))
     }
 
-    async fn ls(&self, _options: Option<helia_interface::LsOptions>) -> Result<helia_interface::AwaitIterable<helia_interface::pins::Pin>, HeliaError> {
+    async fn ls(
+        &self,
+        _options: Option<helia_interface::LsOptions>,
+    ) -> Result<helia_interface::AwaitIterable<helia_interface::pins::Pin>, HeliaError> {
         let s = stream::iter(Vec::new());
         Ok(Box::pin(s))
     }
 
-    async fn is_pinned(&self, _cid: &Cid, _options: Option<helia_interface::IsPinnedOptions>) -> Result<bool, HeliaError> {
+    async fn is_pinned(
+        &self,
+        _cid: &Cid,
+        _options: Option<helia_interface::IsPinnedOptions>,
+    ) -> Result<bool, HeliaError> {
         Ok(false)
     }
 }
@@ -107,7 +139,11 @@ impl Routing for HttpRouting {
         Ok(Box::pin(s))
     }
 
-    async fn provide(&self, _cid: &Cid, _options: Option<helia_interface::ProvideOptions>) -> Result<(), HeliaError> {
+    async fn provide(
+        &self,
+        _cid: &Cid,
+        _options: Option<helia_interface::ProvideOptions>,
+    ) -> Result<(), HeliaError> {
         Err(HeliaError::other("provide not supported"))
     }
 
@@ -194,7 +230,10 @@ impl Datastore for MemoryDatastore {
         Ok(data.contains_key(key))
     }
 
-    async fn query(&self, _prefix: Option<&[u8]>) -> Result<helia_interface::AwaitIterable<Bytes>, HeliaError> {
+    async fn query(
+        &self,
+        _prefix: Option<&[u8]>,
+    ) -> Result<helia_interface::AwaitIterable<Bytes>, HeliaError> {
         let s = stream::iter(Vec::new());
         Ok(Box::pin(s))
     }
@@ -278,4 +317,3 @@ impl Helia for HeliaHttp {
 pub async fn create_helia_http() -> Result<Arc<HeliaHttp>, HeliaError> {
     Ok(Arc::new(HeliaHttp::new()))
 }
-

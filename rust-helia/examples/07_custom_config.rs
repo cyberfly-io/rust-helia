@@ -6,13 +6,12 @@
 //! - Custom libp2p configuration
 //! - Datastore and blockstore configuration
 
-use rust_helia::create_helia;
-use helia_utils::{
-    HeliaConfig, BlockstoreConfig, DatastoreConfig, LoggerConfig,
-    create_swarm_with_keypair
-};
 use helia_interface::Helia;
+use helia_utils::{
+    create_swarm_with_keypair, BlockstoreConfig, DatastoreConfig, HeliaConfig, LoggerConfig,
+};
 use libp2p::identity::Keypair;
+use rust_helia::create_helia;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::Level;
@@ -29,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("1. Configuring custom storage paths...");
     let blockstore_path = temp_dir.join("blocks");
     let datastore_path = temp_dir.join("data");
-    
+
     println!("   Blockstore: {}", blockstore_path.display());
     println!("   Datastore: {}\n", datastore_path.display());
 
@@ -55,7 +54,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         level: Level::INFO,
         include_timestamps: true,
     };
-    println!("   ✓ Logger configured (level: {:?})\n", logger_config.level);
+    println!(
+        "   ✓ Logger configured (level: {:?})\n",
+        logger_config.level
+    );
 
     // 5. Create custom libp2p keypair
     println!("5. Creating custom libp2p identity...");
@@ -75,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         datastore: datastore_config,
         logger: logger_config,
         libp2p: Some(Arc::new(Mutex::new(swarm))),
-        dns: None, // Use default DNS resolver
+        dns: None,     // Use default DNS resolver
         metrics: None, // No metrics for this example
     };
     println!("   ✓ Configuration complete\n");
@@ -93,10 +95,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 10. Use the node
     println!("10. Testing node functionality...");
     use bytes::Bytes;
-    
+
     let test_data = Bytes::from("Testing custom configuration!");
     println!("    Creating test data: {} bytes", test_data.len());
-    
+
     // Note: In a real application, you would use UnixFS or another codec
     // to properly store and retrieve data with automatic CID generation
     println!("    ✓ Node is ready for use\n");
@@ -108,6 +110,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Example completed successfully!");
     println!("\nCustom storage location: {}", temp_dir.display());
-    
+
     Ok(())
 }

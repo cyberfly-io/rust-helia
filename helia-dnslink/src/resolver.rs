@@ -32,7 +32,7 @@ impl DnsResolver {
     pub async fn query_txt(&self, domain: &str) -> Result<Vec<TxtRecord>, DnsLinkError> {
         debug!("Querying TXT records for: {}", domain);
         let resolver = self.resolver.read().await;
-        
+
         let lookup = resolver
             .txt_lookup(domain)
             .await

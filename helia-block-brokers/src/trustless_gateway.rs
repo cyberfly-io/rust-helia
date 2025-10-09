@@ -28,7 +28,7 @@
 //! # }
 //! ```
 
-use crate::{BlockBroker, BlockRetrievalOptions, BlockAnnounceOptions, BrokerStats, Result};
+use crate::{BlockAnnounceOptions, BlockBroker, BlockRetrievalOptions, BrokerStats, Result};
 use bytes::Bytes;
 use cid::Cid;
 use helia_car::CarReader;
@@ -39,7 +39,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 use url::Url;
 
 /// Default public IPFS gateways
@@ -54,16 +54,16 @@ const DEFAULT_GATEWAYS: &[&str] = &[
 pub struct TrustlessGatewayInit {
     /// List of gateway URLs to use
     pub gateways: Vec<Url>,
-    
+
     /// Maximum number of retries per gateway
     pub max_retries: usize,
-    
+
     /// Request timeout in milliseconds
     pub timeout_ms: u64,
-    
+
     /// Whether to allow HTTP (not just HTTPS)
     pub allow_insecure: bool,
-    
+
     /// Whether to allow gateway redirects
     pub allow_redirects: bool,
 }
@@ -88,22 +88,22 @@ impl Default for TrustlessGatewayInit {
 struct GatewayStats {
     /// Total requests to this gateway
     requests: u64,
-    
+
     /// Successful requests
     successes: u64,
-    
+
     /// Failed requests
     failures: u64,
-    
+
     /// Average response time
     avg_response_time: Duration,
-    
+
     /// Last successful request
     last_success: Option<Instant>,
-    
+
     /// Last failure
     last_failure: Option<Instant>,
-    
+
     /// Consecutive failures (used for backoff)
     consecutive_failures: u32,
 }
@@ -128,26 +128,26 @@ impl GatewayStats {
         if self.requests == 0 {
             return 0.5; // Neutral for untested gateways
         }
-        
+
         let success_rate = self.successes as f64 / self.requests as f64;
-        
+
         // Penalize recent failures
         let recency_penalty = if self.consecutive_failures > 0 {
             0.9_f64.powi(self.consecutive_failures as i32)
         } else {
             1.0
         };
-        
+
         success_rate * recency_penalty
     }
-    
+
     /// Record a successful request
     fn record_success(&mut self, response_time: Duration) {
         self.requests += 1;
         self.successes += 1;
         self.consecutive_failures = 0;
         self.last_success = Some(Instant::now());
-        
+
         // Update moving average
         if self.avg_response_time.as_millis() == 0 {
             self.avg_response_time = response_time;
@@ -158,7 +158,7 @@ impl GatewayStats {
             self.avg_response_time = Duration::from_millis(updated_avg as u64);
         }
     }
-    
+
     /// Record a failed request
     fn record_failure(&mut self) {
         self.requests += 1;
@@ -172,16 +172,16 @@ impl GatewayStats {
 pub struct TrustlessGateway {
     /// HTTP client
     client: Client,
-    
+
     /// Gateway URLs
     gateways: Vec<Url>,
-    
+
     /// Configuration
     config: TrustlessGatewayInit,
-    
+
     /// Statistics per gateway
     stats: Arc<RwLock<HashMap<String, GatewayStats>>>,
-    
+
     /// Overall broker statistics
     broker_stats: Arc<RwLock<BrokerStats>>,
 }
@@ -199,13 +199,13 @@ impl TrustlessGateway {
             })
             .build()
             .expect("Failed to create HTTP client");
-        
+
         // Initialize stats for each gateway
         let mut stats_map = HashMap::new();
         for gateway in &init.gateways {
             stats_map.insert(gateway.to_string(), GatewayStats::default());
         }
-        
+
         Self {
             client,
             gateways: init.gateways.clone(),
@@ -214,11 +214,12 @@ impl TrustlessGateway {
             broker_stats: Arc::new(RwLock::new(BrokerStats::default())),
         }
     }
-    
+
     /// Get sorted gateways by reliability
     async fn sorted_gateways(&self) -> Vec<Url> {
         let stats = self.stats.read().await;
-        let mut gateways_with_scores: Vec<(Url, f64)> = self.gateways
+        let mut gateways_with_scores: Vec<(Url, f64)> = self
+            .gateways
             .iter()
             .map(|url| {
                 let score = stats
@@ -228,26 +229,30 @@ impl TrustlessGateway {
                 (url.clone(), score)
             })
             .collect();
-        
+
         // Sort by score descending (best first)
         gateways_with_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
-        gateways_with_scores.into_iter().map(|(url, _)| url).collect()
+
+        gateways_with_scores
+            .into_iter()
+            .map(|(url, _)| url)
+            .collect()
     }
-    
+
     /// Fetch a block from a specific gateway
     async fn fetch_from_gateway(&self, gateway: &Url, cid: &Cid) -> Result<Bytes> {
         let start = Instant::now();
-        
+
         // Construct gateway URL: {gateway}/ipfs/{cid}?format=car
         let mut url = gateway.clone();
         url.set_path(&format!("/ipfs/{}", cid));
         url.set_query(Some("format=car"));
-        
+
         debug!("Fetching {} from gateway: {}", cid, url);
-        
+
         // Make HTTP request
-        let response = self.client
+        let response = self
+            .client
             .get(url.clone())
             .header("Accept", "application/vnd.ipld.car")
             .send()
@@ -256,41 +261,46 @@ impl TrustlessGateway {
                 warn!("HTTP request failed for {}: {}", url, e);
                 HeliaError::other(format!("Gateway request failed: {}", e))
             })?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
             warn!("Gateway returned error status {} for {}", status, url);
-            return Err(HeliaError::other(format!("Gateway returned status: {}", status)));
+            return Err(HeliaError::other(format!(
+                "Gateway returned status: {}",
+                status
+            )));
         }
-        
+
         // Read response body
         let car_bytes = response.bytes().await.map_err(|e| {
             error!("Failed to read response body: {}", e);
             HeliaError::other(format!("Failed to read CAR data: {}", e))
         })?;
-        
+
         debug!("Received {} bytes from gateway", car_bytes.len());
-        
+
         // Parse CAR file
         let cursor = Cursor::new(car_bytes.to_vec());
         let mut car_reader = CarReader::new(cursor);
-        
+
         // Read header
         car_reader.read_header().await?;
-        
+
         // Find the requested block
-        let block_data = car_reader.find_block(cid).await?
+        let block_data = car_reader
+            .find_block(cid)
+            .await?
             .ok_or_else(|| HeliaError::other("Block not found in CAR response"))?;
-        
+
         let elapsed = start.elapsed();
         debug!("Successfully fetched {} in {:?}", cid, elapsed);
-        
+
         // Record success
         let mut stats = self.stats.write().await;
         if let Some(gw_stats) = stats.get_mut(&gateway.to_string()) {
             gw_stats.record_success(elapsed);
         }
-        
+
         Ok(block_data)
     }
 }
@@ -299,7 +309,7 @@ impl TrustlessGateway {
 impl BlockBroker for TrustlessGateway {
     async fn retrieve(&self, cid: Cid, _options: BlockRetrievalOptions) -> Result<Bytes> {
         let mut last_error = None;
-        
+
         // Try gateways in order of reliability
         for gateway in self.sorted_gateways().await {
             for attempt in 0..self.config.max_retries {
@@ -311,7 +321,7 @@ impl BlockBroker for TrustlessGateway {
                         broker_stats.successful_requests += 1;
                         broker_stats.last_seen = Instant::now();
                         drop(broker_stats); // Release lock
-                        
+
                         return Ok(data);
                     }
                     Err(e) => {
@@ -322,9 +332,9 @@ impl BlockBroker for TrustlessGateway {
                             gateway,
                             e
                         );
-                        
+
                         last_error = Some(e);
-                        
+
                         // Record failure (don't hold lock across await)
                         {
                             let mut stats = self.stats.write().await;
@@ -332,7 +342,7 @@ impl BlockBroker for TrustlessGateway {
                                 gw_stats.record_failure();
                             }
                         } // Lock released here
-                        
+
                         // Wait before retry (exponential backoff)
                         if attempt + 1 < self.config.max_retries {
                             let backoff = Duration::from_millis(100 * 2_u64.pow(attempt as u32));
@@ -342,37 +352,48 @@ impl BlockBroker for TrustlessGateway {
                 }
             }
         }
-        
+
         // All gateways failed
         let mut broker_stats = self.broker_stats.write().await;
         broker_stats.requests_made += 1;
         broker_stats.failed_requests += 1;
-        
+
         Err(last_error.unwrap_or_else(|| HeliaError::other("All gateways failed")))
     }
-    
-    async fn announce(&self, _cid: Cid, _data: Bytes, _options: BlockAnnounceOptions) -> Result<()> {
+
+    async fn announce(
+        &self,
+        _cid: Cid,
+        _data: Bytes,
+        _options: BlockAnnounceOptions,
+    ) -> Result<()> {
         // Trustless gateways don't support announcements (read-only)
-        Err(HeliaError::other("Trustless gateway does not support announcements"))
+        Err(HeliaError::other(
+            "Trustless gateway does not support announcements",
+        ))
     }
-    
+
     async fn start(&self) -> Result<()> {
-        debug!("Trustless gateway started with {} gateways", self.gateways.len());
+        debug!(
+            "Trustless gateway started with {} gateways",
+            self.gateways.len()
+        );
         Ok(())
     }
-    
+
     async fn stop(&self) -> Result<()> {
         debug!("Trustless gateway stopped");
         Ok(())
     }
-    
+
     fn get_stats(&self) -> BrokerStats {
         // Use try_read to avoid blocking in sync context
-        self.broker_stats.try_read()
+        self.broker_stats
+            .try_read()
             .map(|stats| stats.clone())
             .unwrap_or_default()
     }
-    
+
     fn name(&self) -> &str {
         "TrustlessGateway"
     }

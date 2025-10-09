@@ -3,7 +3,7 @@
 //! The API defined by a Helia node
 //!
 //! This crate provides the core interfaces and traits that define the Helia IPFS implementation.
-//! 
+//!
 //! ## Example
 //!
 //! ```rust
@@ -15,9 +15,9 @@
 //! ```
 
 pub mod blocks;
+pub mod errors;
 pub mod pins;
 pub mod routing;
-pub mod errors;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -34,9 +34,9 @@ use tokio::sync::Mutex;
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub use blocks::*;
+pub use errors::*;
 pub use pins::*;
 pub use routing::*;
-pub use errors::*;
 
 /// Type alias for async iterables/streams
 pub type AwaitIterable<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
@@ -74,16 +74,17 @@ pub struct ProgressOptions<T> {
 impl<T> std::fmt::Debug for ProgressOptions<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProgressOptions")
-            .field("on_progress", &self.on_progress.as_ref().map(|_| "Some(closure)"))
+            .field(
+                "on_progress",
+                &self.on_progress.as_ref().map(|_| "Some(closure)"),
+            )
             .finish()
     }
 }
 
 impl<T> Default for ProgressOptions<T> {
     fn default() -> Self {
-        Self {
-            on_progress: None,
-        }
+        Self { on_progress: None }
     }
 }
 
@@ -113,10 +114,10 @@ pub trait HasherLoader: Send + Sync {
 pub trait Codec: Send + Sync {
     /// Encode data using this codec
     async fn encode(&self, data: &[u8]) -> Result<Bytes, HeliaError>;
-    
+
     /// Decode data using this codec
     async fn decode(&self, data: &[u8]) -> Result<Bytes, HeliaError>;
-    
+
     /// Get the codec code
     fn code(&self) -> u64;
 }
@@ -126,7 +127,7 @@ pub trait Codec: Send + Sync {
 pub trait Hasher: Send + Sync {
     /// Hash data using this hasher
     async fn hash(&self, data: &[u8]) -> Result<multihash::Multihash<64>, HeliaError>;
-    
+
     /// Get the hasher code
     fn code(&self) -> u64;
 }
@@ -193,10 +194,10 @@ pub trait ComponentLogger: Send + Sync {
 pub trait Metrics: Send + Sync {
     /// Record a counter metric
     async fn record_counter(&self, name: &str, value: u64, labels: HashMap<String, String>);
-    
+
     /// Record a gauge metric
     async fn record_gauge(&self, name: &str, value: f64, labels: HashMap<String, String>);
-    
+
     /// Record a histogram metric
     async fn record_histogram(&self, name: &str, value: f64, labels: HashMap<String, String>);
 }
@@ -206,46 +207,46 @@ pub trait Metrics: Send + Sync {
 pub trait Helia: Send + Sync {
     /// The blockstore for storing blocks
     fn blockstore(&self) -> &dyn Blocks;
-    
+
     /// The datastore for key-value storage
     fn datastore(&self) -> &dyn Datastore;
-    
+
     /// Pinning operations
     fn pins(&self) -> &dyn Pins;
-    
+
     /// The logger component
     fn logger(&self) -> &dyn ComponentLogger;
-    
+
     /// The routing component
     fn routing(&self) -> &dyn Routing;
-    
+
     /// DNS resolver
     fn dns(&self) -> &TokioAsyncResolver;
-    
+
     /// Optional metrics collector
     fn metrics(&self) -> Option<&dyn Metrics>;
-    
+
     /// Start the Helia node
     async fn start(&self) -> Result<(), HeliaError>;
-    
+
     /// Stop the Helia node
     async fn stop(&self) -> Result<(), HeliaError>;
-    
+
     /// Perform garbage collection
     async fn gc(&self, options: Option<GcOptions>) -> Result<(), HeliaError>;
-    
+
     /// Load an IPLD codec
     async fn get_codec(&self, code: u64) -> Result<Box<dyn Codec>, HeliaError>;
-    
+
     /// Load a hasher
     async fn get_hasher(&self, code: u64) -> Result<Box<dyn Hasher>, HeliaError>;
 }
 
 /// Generic Helia trait with libp2p type parameter for concrete implementations
 #[async_trait]
-pub trait HeliaWithLibp2p<T>: Helia 
-where 
-    T: libp2p::swarm::NetworkBehaviour + Send + 'static
+pub trait HeliaWithLibp2p<T>: Helia
+where
+    T: libp2p::swarm::NetworkBehaviour + Send + 'static,
 {
     /// The libp2p swarm instance (wrapped in Arc<Mutex<>> for thread safety)
     fn libp2p(&self) -> Arc<Mutex<Swarm<T>>>;
@@ -256,16 +257,16 @@ where
 pub trait Datastore: Send + Sync {
     /// Get a value by key
     async fn get(&self, key: &[u8]) -> Result<Option<Bytes>, HeliaError>;
-    
+
     /// Put a key-value pair
     async fn put(&self, key: &[u8], value: Bytes) -> Result<(), HeliaError>;
-    
+
     /// Delete a key
     async fn delete(&self, key: &[u8]) -> Result<(), HeliaError>;
-    
+
     /// Check if a key exists
     async fn has(&self, key: &[u8]) -> Result<bool, HeliaError>;
-    
+
     /// Query for keys with optional filters
     async fn query(&self, prefix: Option<&[u8]>) -> Result<AwaitIterable<Bytes>, HeliaError>;
 }

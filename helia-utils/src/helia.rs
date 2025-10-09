@@ -5,20 +5,33 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
-use tokio::sync::{RwLock, Mutex};
-use tokio::task::JoinHandle;
-use trust_dns_resolver::TokioAsyncResolver;
 use futures::stream;
 use futures::StreamExt;
-use libp2p::{Swarm, swarm::SwarmEvent};
+use helia_bitswap::BlockPresenceType;
+use libp2p::{
+    kad,
+    swarm::{
+        dial_opts::{DialOpts, PeerCondition},
+        SwarmEvent,
+    },
+    Swarm,
+};
+use tokio::sync::{Mutex, RwLock};
+use tokio::task::JoinHandle;
+use trust_dns_resolver::TokioAsyncResolver;
 
-use helia_interface::*;
 use helia_interface::pins::Pin as HeliaPin;
+use helia_interface::*;
 
-use crate::{HeliaConfig, SledBlockstore, SledDatastore, TracingLogger, 
-           HeliaBehaviour, create_swarm, BlockstoreWithBitswap};
 use crate::libp2p_behaviour::HeliaBehaviourEvent;
-use helia_bitswap::{BitswapEvent, Bitswap, BitswapConfig};
+use crate::{
+    create_swarm, BlockstoreWithBitswap, HeliaBehaviour, HeliaConfig, SledBlockstore,
+    SledDatastore, TracingLogger,
+};
+use helia_bitswap::{
+    network_new::{BitswapMessageEvent, NetworkEvent},
+    Bitswap, BitswapConfig, BitswapEvent,
+};
 
 /// Main implementation of the Helia trait
 pub struct HeliaImpl {
@@ -33,7 +46,13 @@ pub struct HeliaImpl {
     started: Arc<RwLock<bool>>,
     event_loop_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     bitswap: Arc<Bitswap>,
-    outbound_rx: Arc<Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<helia_bitswap::coordinator::OutboundMessage>>>>,
+    outbound_rx: Arc<
+        Mutex<
+            Option<
+                tokio::sync::mpsc::UnboundedReceiver<helia_bitswap::coordinator::OutboundMessage>,
+            >,
+        >,
+    >,
 }
 
 impl HeliaImpl {
@@ -44,16 +63,17 @@ impl HeliaImpl {
         let pins = Arc::new(SimplePins::new(datastore.clone()));
         let logger = Arc::new(TracingLogger::new(config.logger));
         let routing = Arc::new(DummyRouting::new());
-        
+
         // Use provided libp2p swarm or create a new one
         let libp2p = if let Some(swarm) = config.libp2p.take() {
             swarm
         } else {
-            let swarm = create_swarm().await
-                .map_err(|e| HeliaError::network(format!("Failed to create libp2p swarm: {}", e)))?;
+            let swarm = create_swarm().await.map_err(|e| {
+                HeliaError::network(format!("Failed to create libp2p swarm: {}", e))
+            })?;
             Arc::new(Mutex::new(swarm))
         };
-        
+
         let dns = config.dns.unwrap_or_else(|| {
             TokioAsyncResolver::tokio_from_system_conf().expect("Failed to create DNS resolver")
         });
@@ -61,12 +81,12 @@ impl HeliaImpl {
         // Create Bitswap coordinator
         let bitswap_config = BitswapConfig::default();
         let mut bitswap = Bitswap::new(local_blockstore.clone() as Arc<dyn Blocks>, bitswap_config)
-                .await
-                .map_err(|e| HeliaError::network(format!("Failed to create Bitswap: {}", e)))?;
+            .await
+            .map_err(|e| HeliaError::network(format!("Failed to create Bitswap: {}", e)))?;
 
         // Create channel for outbound Bitswap messages
         let (outbound_tx, outbound_rx) = tokio::sync::mpsc::unbounded_channel();
-        bitswap.set_outbound_sender(outbound_tx);
+        bitswap.set_outbound_sender(outbound_tx).await;
         logger.info("Bitswap outbound message channel created");
 
         let bitswap = Arc::new(bitswap);
@@ -75,7 +95,10 @@ impl HeliaImpl {
         // This allows the behaviour to respond to incoming WANT requests
         {
             let mut swarm_guard = libp2p.lock().await;
-            swarm_guard.behaviour_mut().bitswap.set_coordinator(bitswap.clone());
+            swarm_guard
+                .behaviour_mut()
+                .bitswap
+                .set_coordinator(bitswap.clone());
             logger.info("Bitswap coordinator connected to NetworkBehaviour");
         }
 
@@ -141,13 +164,16 @@ impl Helia for HeliaImpl {
         }
 
         // Start Bitswap coordinator
-        self.bitswap.start().await
+        self.bitswap
+            .start()
+            .await
             .map_err(|e| HeliaError::network(format!("Failed to start Bitswap: {}", e)))?;
         self.logger.info("Bitswap coordinator started");
 
         // Start libp2p swarm
         let mut swarm = self.libp2p.lock().await;
-        swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
+        swarm
+            .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
             .map_err(|e| HeliaError::network(format!("Failed to start listening: {}", e)))?;
         drop(swarm); // Release lock before spawning event loop
 
@@ -156,15 +182,26 @@ impl Helia for HeliaImpl {
         let blockstore_clone = self.blockstore.clone();
         let logger_clone = self.logger.clone();
         let bitswap_clone = self.bitswap.clone();
-        
+
         // Take the outbound_rx channel (only available once)
-        let outbound_rx = self.outbound_rx.lock().await.take()
+        let outbound_rx = self
+            .outbound_rx
+            .lock()
+            .await
+            .take()
             .ok_or_else(|| HeliaError::other("Bitswap outbound channel already taken"))?;
-        
+
         let handle = tokio::spawn(async move {
-            run_swarm_event_loop(swarm_clone, blockstore_clone, logger_clone, bitswap_clone, outbound_rx).await;
+            run_swarm_event_loop(
+                swarm_clone,
+                blockstore_clone,
+                logger_clone,
+                bitswap_clone,
+                outbound_rx,
+            )
+            .await;
         });
-        
+
         *self.event_loop_handle.lock().await = Some(handle);
 
         self.logger.info("Helia node started");
@@ -184,14 +221,17 @@ impl Helia for HeliaImpl {
         }
 
         // Stop Bitswap coordinator
-        self.bitswap.stop().await
+        self.bitswap
+            .stop()
+            .await
             .map_err(|e| HeliaError::network(format!("Failed to stop Bitswap: {}", e)))?;
         self.logger.info("Bitswap coordinator stopped");
 
         self.logger.info("Helia node stopped");
         *started = false;
         Ok(())
-    }    async fn gc(&self, _options: Option<GcOptions>) -> Result<(), HeliaError> {
+    }
+    async fn gc(&self, _options: Option<GcOptions>) -> Result<(), HeliaError> {
         // TODO: Implement garbage collection
         self.logger.info("Garbage collection not yet implemented");
         Ok(())
@@ -203,7 +243,7 @@ impl Helia for HeliaImpl {
     }
 
     async fn get_hasher(&self, code: u64) -> Result<Box<dyn Hasher>, HeliaError> {
-        // TODO: Implement hasher loading  
+        // TODO: Implement hasher loading
         Err(HeliaError::HasherNotFound { code })
     }
 }
@@ -276,7 +316,11 @@ impl Routing for DummyRouting {
         Err(HeliaError::routing("Routing not yet implemented"))
     }
 
-    async fn provide(&self, _cid: &Cid, _options: Option<ProvideOptions>) -> Result<(), HeliaError> {
+    async fn provide(
+        &self,
+        _cid: &Cid,
+        _options: Option<ProvideOptions>,
+    ) -> Result<(), HeliaError> {
         Err(HeliaError::routing("Routing not yet implemented"))
     }
 
@@ -336,7 +380,7 @@ impl SimplePins {
 impl Pins for SimplePins {
     async fn add(&self, cid: &Cid, options: Option<AddOptions>) -> Result<(), HeliaError> {
         let options = options.unwrap_or_default();
-        
+
         let pin = HeliaPin {
             cid: *cid,
             depth: options.depth.unwrap_or(u64::MAX), // Default to recursive (infinite depth)
@@ -345,7 +389,7 @@ impl Pins for SimplePins {
 
         let key = self.pin_key(cid);
         let value = self.pin_to_bytes(&pin)?;
-        
+
         self.datastore.put(&key, value).await?;
         Ok(())
     }
@@ -358,7 +402,7 @@ impl Pins for SimplePins {
 
     async fn ls(&self, options: Option<LsOptions>) -> Result<AwaitIterable<HeliaPin>, HeliaError> {
         let options = options.unwrap_or_default();
-        
+
         // If filtering by specific CID
         if let Some(filter_cid) = options.cid {
             let key = self.pin_key(&filter_cid);
@@ -373,7 +417,7 @@ impl Pins for SimplePins {
             // List all pins - get all entries with "pin:" prefix
             let mut pins = Vec::new();
             let mut query_stream = self.datastore.query(Some(b"pin:")).await?;
-            
+
             use futures::StreamExt;
             while let Some(data) = query_stream.next().await {
                 match self.bytes_to_pin(&data) {
@@ -381,12 +425,16 @@ impl Pins for SimplePins {
                     Err(_) => continue, // Skip invalid pin entries
                 }
             }
-            
+
             Ok(Box::pin(stream::iter(pins)))
         }
     }
 
-    async fn is_pinned(&self, cid: &Cid, _options: Option<IsPinnedOptions>) -> Result<bool, HeliaError> {
+    async fn is_pinned(
+        &self,
+        cid: &Cid,
+        _options: Option<IsPinnedOptions>,
+    ) -> Result<bool, HeliaError> {
         let key = self.pin_key(cid);
         self.datastore.has(&key).await
     }
@@ -398,7 +446,9 @@ async fn run_swarm_event_loop(
     blockstore: Arc<dyn Blocks>,
     logger: Arc<TracingLogger>,
     bitswap: Arc<Bitswap>,
-    mut outbound_rx: tokio::sync::mpsc::UnboundedReceiver<helia_bitswap::coordinator::OutboundMessage>,
+    mut outbound_rx: tokio::sync::mpsc::UnboundedReceiver<
+        helia_bitswap::coordinator::OutboundMessage,
+    >,
 ) {
     loop {
         tokio::select! {
@@ -419,7 +469,52 @@ async fn run_swarm_event_loop(
                                 logger.debug(&format!("Identify event: {:?}", identify_event));
                             }
                             HeliaBehaviourEvent::Kademlia(kad_event) => {
-                                logger.debug(&format!("Kademlia event: {:?}", kad_event));
+                                use libp2p::kad::QueryResult;
+
+                                match kad_event {
+                                    kad::Event::OutboundQueryProgressed { result, .. } => {
+                                        match result {
+                                            QueryResult::GetProviders(Ok(ok)) => {
+                                                logger.info(&format!("Kademlia: provider query result {:?}", ok));
+                                            }
+                                            QueryResult::GetProviders(Err(err)) => {
+                                                logger.warn(&format!("Kademlia: provider query error: {:?}", err));
+                                            }
+                                            QueryResult::GetClosestPeers(Ok(ok)) => {
+                                                logger.info(&format!("Kademlia: closest peers result {:?}", ok));
+                                            }
+                                            QueryResult::GetClosestPeers(Err(err)) => {
+                                                logger.warn(&format!("Kademlia: closest peers query error: {:?}", err));
+                                            }
+                                            other => {
+                                                logger.debug(&format!("Kademlia query result: {:?}", other));
+                                            }
+                                        }
+                                    }
+                                    kad::Event::RoutingUpdated { peer, addresses, .. } => {
+                                        for addr in addresses.iter() {
+                                            logger.info(&format!(
+                                                "Kademlia: routing updated for peer {} at {}",
+                                                peer, addr
+                                            ));
+                                        }
+                                    }
+                                    kad::Event::RoutablePeer { peer, address } => {
+                                        logger.info(&format!(
+                                            "Kademlia: routable peer {} via {}",
+                                            peer, address
+                                        ));
+                                    }
+                                    kad::Event::PendingRoutablePeer { peer, address } => {
+                                        logger.info(&format!(
+                                            "Kademlia: pending routable peer {} via {}",
+                                            peer, address
+                                        ));
+                                    }
+                                    other => {
+                                        logger.debug(&format!("Kademlia event: {:?}", other));
+                                    }
+                                }
                             }
                     HeliaBehaviourEvent::Gossipsub(gossip_event) => {
                         logger.debug(&format!("Gossipsub event: {:?}", gossip_event));
@@ -459,11 +554,17 @@ async fn run_swarm_event_loop(
                 logger.info(&format!("Connection established with peer: {} at {}", peer_id, endpoint.get_remote_address()));
                 // Notify Bitswap coordinator of new peer
                 bitswap.add_peer(peer_id).await;
+                bitswap
+                    .wantlist()
+                    .dispatch_event(NetworkEvent::PeerConnected(peer_id));
             }
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 logger.info(&format!("Connection closed with peer: {} (cause: {:?})", peer_id, cause));
                 // Notify Bitswap coordinator of disconnected peer
                 bitswap.remove_peer(&peer_id).await;
+                bitswap
+                    .wantlist()
+                    .dispatch_event(NetworkEvent::PeerDisconnected(peer_id));
             }
             SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. } => {
                 logger.debug(&format!("Incoming connection from {} to {}", send_back_addr, local_addr));
@@ -483,7 +584,7 @@ async fn run_swarm_event_loop(
             }
         }
             }
-            
+
             // Handle outbound Bitswap messages from coordinator
             Some(outbound_msg) = outbound_rx.recv() => {
                 logger.debug(&format!("Sending Bitswap message to peer {} via swarm", outbound_msg.peer));
@@ -504,18 +605,43 @@ async fn handle_bitswap_event(
     match event {
         BitswapEvent::MessageReceived { peer, message } => {
             logger.info(&format!("Received Bitswap message from peer: {}", peer));
-            
+            logger.debug(&format!(
+                "Bitswap payload summary -> structured blocks: {}, raw blocks: {}, presences: {}, wantlist entries: {}",
+                message.blocks.len(),
+                message.raw_blocks.len(),
+                message.block_presences.len(),
+                message
+                    .wantlist
+                    .as_ref()
+                    .map(|w| w.entries.len())
+                    .unwrap_or(0)
+            ));
+
+            // Forward message to Bitswap wantlist for responder handling
+            bitswap
+                .wantlist()
+                .dispatch_event(NetworkEvent::BitswapMessage(BitswapMessageEvent {
+                    peer,
+                    message: message.clone(),
+                }));
+
             // Store any blocks that were received
             if !message.blocks.is_empty() {
-                logger.info(&format!("Received {} blocks from peer {}", message.blocks.len(), peer));
-                
-                for block in message.blocks {
+                logger.info(&format!(
+                    "Received {} blocks from peer {}",
+                    message.blocks.len(),
+                    peer
+                ));
+
+                let wantlist = bitswap.wantlist();
+
+                for block in &message.blocks {
                     logger.debug(&format!(
                         "Block received - prefix_len: {}, data_len: {}",
                         block.prefix.len(),
                         block.data.len()
                     ));
-                    
+
                     // Decode CID from prefix and data
                     // The prefix contains: [version, codec, ...]
                     // For now, we'll reconstruct the CID from the block data
@@ -523,17 +649,33 @@ async fn handle_bitswap_event(
                     match reconstruct_cid_from_block(&block.prefix, &block.data) {
                         Ok(cid) => {
                             logger.info(&format!("Storing received block: {}", cid));
-                            
+
                             // Store in blockstore
-                            if let Err(e) = blockstore.put(&cid, bytes::Bytes::from(block.data), None).await {
-                                logger.warn(&format!("Failed to store received block {}: {}", cid, e));
+                            if let Err(e) = blockstore
+                                .put(&cid, Bytes::from(block.data.clone()), None)
+                                .await
+                            {
+                                logger.warn(&format!(
+                                    "Failed to store received block {}: {}",
+                                    cid, e
+                                ));
                             } else {
                                 logger.info(&format!("✅ Successfully stored block: {}", cid));
-                                
+
                                 // **OPTIMIZATION**: Immediately notify bitswap coordinator
                                 // This wakes up any waiting want() calls (event-driven, not polling)
                                 bitswap.notify_block_received(&cid);
-                                logger.debug(&format!("Notified coordinator of block arrival: {}", cid));
+                                logger.debug(&format!(
+                                    "Notified coordinator of block arrival: {}",
+                                    cid
+                                ));
+
+                                if let Err(e) = wantlist.received_block(&cid).await {
+                                    logger.warn(&format!(
+                                        "Failed to notify wantlist for {}: {}",
+                                        cid, e
+                                    ));
+                                }
                             }
                         }
                         Err(e) => {
@@ -542,7 +684,19 @@ async fn handle_bitswap_event(
                     }
                 }
             }
-            
+
+            if !message.raw_blocks.is_empty() {
+                logger.info(&format!(
+                    "Received {} legacy raw block(s) from {}",
+                    message.raw_blocks.len(),
+                    peer
+                ));
+            }
+
+            if message.blocks.is_empty() && message.raw_blocks.is_empty() {
+                logger.warn("Bitswap message contained no blocks");
+            }
+
             // Log wantlist if present
             if let Some(wantlist) = &message.wantlist {
                 logger.debug(&format!(
@@ -550,30 +704,52 @@ async fn handle_bitswap_event(
                     wantlist.entries.len(),
                     wantlist.full
                 ));
-                
+
                 // TODO: Process wantlist and send blocks if we have them
                 // This will be implemented when we connect the coordinator
             }
-            
+
             // Log block presences if present
             if !message.block_presences.is_empty() {
-                logger.debug(&format!(
-                    "Received {} block presence notifications",
-                    message.block_presences.len()
+                logger.info(&format!(
+                    "Received {} block presence notification(s) from {}",
+                    message.block_presences.len(),
+                    peer
                 ));
+
+                for presence in &message.block_presences {
+                    let cid_display = match Cid::try_from(presence.cid.as_slice()) {
+                        Ok(cid) => cid.to_string(),
+                        Err(_) => "<invalid cid>".to_string(),
+                    };
+
+                    let status = match presence.r#type {
+                        x if x == BlockPresenceType::HaveBlock as i32 => "HAVE",
+                        x if x == BlockPresenceType::DoNotHaveBlock as i32 => "DONT_HAVE",
+                        _ => "UNKNOWN",
+                    };
+
+                    logger.info(&format!("   Presence: {} reports {}", cid_display, status));
+                }
             }
         }
         BitswapEvent::MessageSent { peer } => {
-            logger.debug(&format!("Successfully sent Bitswap message to peer: {}", peer));
+            logger.debug(&format!(
+                "Successfully sent Bitswap message to peer: {}",
+                peer
+            ));
         }
         BitswapEvent::SendError { peer, error } => {
-            logger.warn(&format!("Failed to send Bitswap message to peer {}: {}", peer, error));
+            logger.warn(&format!(
+                "Failed to send Bitswap message to peer {}: {}",
+                peer, error
+            ));
         }
     }
 }
 
 /// Reconstruct CID from Bitswap block prefix and data
-/// 
+///
 /// In our implementation, the prefix contains the full CID bytes,
 /// which allows us to get the exact CID without needing to re-hash.
 fn reconstruct_cid_from_block(prefix: &[u8], _data: &[u8]) -> Result<cid::Cid, HeliaError> {

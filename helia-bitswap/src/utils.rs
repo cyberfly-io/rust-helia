@@ -1,7 +1,9 @@
 //! Utilities for Bitswap message handling
 //! Based on @helia/bitswap utils
 
-use crate::pb::{BitswapMessage, Block, BlockPresence, BlockPresenceType, Wantlist, WantlistEntry, WantType};
+use crate::pb::{
+    BitswapMessage, Block, BlockPresence, BlockPresenceType, WantType, Wantlist, WantlistEntry,
+};
 use cid::Cid;
 use std::collections::HashMap;
 
@@ -80,9 +82,7 @@ impl QueuedBitswapMessage {
 
     /// Check if message is empty
     pub fn is_empty(&self) -> bool {
-        self.wantlist.is_empty() 
-            && self.blocks.is_empty() 
-            && self.block_presences.is_empty()
+        self.wantlist.is_empty() && self.blocks.is_empty() && self.block_presences.is_empty()
     }
 
     /// Convert to protocol message
@@ -96,11 +96,15 @@ impl QueuedBitswapMessage {
             })
         };
 
+        let blocks: Vec<Block> = self.blocks.values().cloned().collect();
+        let raw_blocks = blocks.iter().map(|block| block.data.clone()).collect();
+
         BitswapMessage {
             wantlist,
-            blocks: self.blocks.values().cloned().collect(),
+            raw_blocks,
             block_presences: self.block_presences.values().cloned().collect(),
             pending_bytes: self.pending_bytes,
+            blocks,
         }
     }
 
@@ -117,7 +121,10 @@ impl Default for QueuedBitswapMessage {
 }
 
 /// Merge two queued messages
-pub fn merge_messages(mut base: QueuedBitswapMessage, other: QueuedBitswapMessage) -> QueuedBitswapMessage {
+pub fn merge_messages(
+    mut base: QueuedBitswapMessage,
+    other: QueuedBitswapMessage,
+) -> QueuedBitswapMessage {
     // Merge wantlists
     for (cid, entry) in other.wantlist {
         base.wantlist.insert(cid, entry);
@@ -145,7 +152,7 @@ pub fn merge_messages(mut base: QueuedBitswapMessage, other: QueuedBitswapMessag
 /// Split a message if it exceeds the maximum size
 pub fn split_message(message: QueuedBitswapMessage, max_size: usize) -> Vec<BitswapMessage> {
     let estimated_size = message.estimated_size();
-    
+
     if estimated_size <= max_size {
         return vec![message.to_message()];
     }
@@ -157,12 +164,12 @@ pub fn split_message(message: QueuedBitswapMessage, max_size: usize) -> Vec<Bits
     // Add blocks first (they're usually largest)
     for (cid_bytes, block) in message.blocks {
         let block_size = block.data.len() + block.prefix.len();
-        
+
         if current.estimated_size() + block_size > max_size && !current.is_empty() {
             messages.push(current.to_message());
             current = QueuedBitswapMessage::new();
         }
-        
+
         current.blocks.insert(cid_bytes, block);
     }
 
@@ -172,7 +179,7 @@ pub fn split_message(message: QueuedBitswapMessage, max_size: usize) -> Vec<Bits
             messages.push(current.to_message());
             current = QueuedBitswapMessage::new();
         }
-        
+
         current.wantlist.insert(cid_bytes, entry);
     }
 
@@ -182,7 +189,7 @@ pub fn split_message(message: QueuedBitswapMessage, max_size: usize) -> Vec<Bits
             messages.push(current.to_message());
             current = QueuedBitswapMessage::new();
         }
-        
+
         current.block_presences.insert(cid_bytes, presence);
     }
 
@@ -200,22 +207,22 @@ pub fn split_message(message: QueuedBitswapMessage, max_size: usize) -> Vec<Bits
 /// Helper to create CID prefix from a CID
 pub fn cid_to_prefix(cid: &Cid) -> Vec<u8> {
     let cid_bytes = cid.to_bytes();
-    
+
     // Extract version, codec, and multihash info
     let mut prefix = Vec::new();
-    
+
     // CID version
     prefix.push(match cid.version() {
         cid::Version::V0 => 0,
         cid::Version::V1 => 1,
     });
-    
+
     // Codec
     let codec = cid.codec();
     let mut codec_buffer = unsigned_varint::encode::u64_buffer();
     let codec_bytes = unsigned_varint::encode::u64(codec, &mut codec_buffer);
     prefix.extend_from_slice(codec_bytes);
-    
+
     // Hash algorithm and length from multihash
     if cid_bytes.len() > 2 {
         // Multihash starts after version and codec
@@ -225,7 +232,7 @@ pub fn cid_to_prefix(cid: &Cid) -> Vec<u8> {
             prefix.push(cid_bytes[hash_start + 1]); // hash length
         }
     }
-    
+
     prefix
 }
 
@@ -237,10 +244,10 @@ mod tests {
     fn test_queued_message_creation() {
         let mut msg = QueuedBitswapMessage::new();
         assert!(msg.is_empty());
-        
+
         let cid = Cid::try_from("QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG").unwrap();
         msg.add_want_block(&cid, 10);
-        
+
         assert!(!msg.is_empty());
         assert_eq!(msg.wantlist.len(), 1);
     }
@@ -249,13 +256,13 @@ mod tests {
     fn test_merge_messages() {
         let cid1 = Cid::try_from("QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG").unwrap();
         let cid2 = Cid::try_from("QmZfSNpGEAJXuJWGLzjoAXbNGcWE8y9YqJvpYfZZM6nqPs").unwrap();
-        
+
         let mut msg1 = QueuedBitswapMessage::new();
         msg1.add_want_block(&cid1, 10);
-        
+
         let mut msg2 = QueuedBitswapMessage::new();
         msg2.add_want_block(&cid2, 20);
-        
+
         let merged = merge_messages(msg1, msg2);
         assert_eq!(merged.wantlist.len(), 2);
     }

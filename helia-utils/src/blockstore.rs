@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
-use sled::Db;
 use futures::stream;
+use sled::Db;
 
-use helia_interface::*;
 use crate::BlockstoreConfig;
+use helia_interface::*;
 
 /// Sled-based blockstore implementation
 pub struct SledBlockstore {
@@ -17,12 +17,12 @@ pub struct SledBlockstore {
 impl SledBlockstore {
     pub fn new(config: BlockstoreConfig) -> Result<Self, HeliaError> {
         let db = if let Some(path) = config.path {
-            sled::open(path).map_err(|e| HeliaError::other(format!("Failed to open blockstore: {}", e)))?
+            sled::open(path)
+                .map_err(|e| HeliaError::other(format!("Failed to open blockstore: {}", e)))?
         } else {
-            sled::Config::new()
-                .temporary(true)
-                .open()
-                .map_err(|e| HeliaError::other(format!("Failed to create temporary blockstore: {}", e)))?
+            sled::Config::new().temporary(true).open().map_err(|e| {
+                HeliaError::other(format!("Failed to create temporary blockstore: {}", e))
+            })?
         };
 
         Ok(Self { db })
@@ -50,7 +50,7 @@ impl Blocks for SledBlockstore {
         _options: Option<GetManyOptions>,
     ) -> Result<AwaitIterable<Result<Pair, HeliaError>>, HeliaError> {
         let mut results = Vec::new();
-        
+
         for cid in cids {
             let result = match self.get(&cid, None).await {
                 Ok(block) => Ok(Pair { cid, block }),
@@ -58,13 +58,16 @@ impl Blocks for SledBlockstore {
             };
             results.push(result);
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 
-    async fn get_all(&self, _options: Option<GetAllOptions>) -> Result<AwaitIterable<Pair>, HeliaError> {
+    async fn get_all(
+        &self,
+        _options: Option<GetAllOptions>,
+    ) -> Result<AwaitIterable<Pair>, HeliaError> {
         let mut results = Vec::new();
-        
+
         // Iterate through all blocks in the database
         for item in self.db.iter() {
             match item {
@@ -84,11 +87,16 @@ impl Blocks for SledBlockstore {
                 }
             }
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 
-    async fn put(&self, cid: &Cid, block: Bytes, _options: Option<PutBlockOptions>) -> Result<Cid, HeliaError> {
+    async fn put(
+        &self,
+        cid: &Cid,
+        block: Bytes,
+        _options: Option<PutBlockOptions>,
+    ) -> Result<Cid, HeliaError> {
         let key = self.cid_to_key(cid);
         self.db
             .insert(&key, block.as_ref())
@@ -102,26 +110,24 @@ impl Blocks for SledBlockstore {
         _options: Option<PutManyOptions>,
     ) -> Result<AwaitIterable<Cid>, HeliaError> {
         let mut results = Vec::new();
-        
+
         for input_pair in blocks {
             // If CID is not provided, we'd need to compute it from the block
             // For now, we'll require CID to be provided
-            let cid = input_pair.cid.ok_or_else(|| HeliaError::other("CID is required for putting block"))?;
-            
+            let cid = input_pair
+                .cid
+                .ok_or_else(|| HeliaError::other("CID is required for putting block"))?;
+
             match self.put(&cid, input_pair.block, None).await {
                 Ok(returned_cid) => results.push(returned_cid),
                 Err(e) => return Err(e), // Fail fast on any error
             }
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 
-    async fn has(
-        &self,
-        cid: &Cid,
-        _options: Option<HasOptions>,
-    ) -> Result<bool, HeliaError> {
+    async fn has(&self, cid: &Cid, _options: Option<HasOptions>) -> Result<bool, HeliaError> {
         let key = self.cid_to_key(cid);
         match self.db.contains_key(&key) {
             Ok(exists) => Ok(exists),
@@ -135,14 +141,14 @@ impl Blocks for SledBlockstore {
         _options: Option<HasOptions>,
     ) -> Result<AwaitIterable<bool>, HeliaError> {
         let mut results = Vec::new();
-        
+
         for cid in cids {
             match self.has(&cid, None).await {
                 Ok(exists) => results.push(exists),
                 Err(e) => return Err(e), // Fail fast on any error
             }
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 
@@ -152,15 +158,20 @@ impl Blocks for SledBlockstore {
         _options: Option<DeleteManyOptions>,
     ) -> Result<AwaitIterable<Cid>, HeliaError> {
         let mut results = Vec::new();
-        
+
         for cid in cids {
             let key = self.cid_to_key(&cid);
             match self.db.remove(&key) {
                 Ok(_) => results.push(cid), // Successfully deleted
-                Err(e) => return Err(HeliaError::other(format!("Delete error for {}: {}", cid, e))),
+                Err(e) => {
+                    return Err(HeliaError::other(format!(
+                        "Delete error for {}: {}",
+                        cid, e
+                    )))
+                }
             }
         }
-        
+
         Ok(Box::pin(stream::iter(results)))
     }
 }

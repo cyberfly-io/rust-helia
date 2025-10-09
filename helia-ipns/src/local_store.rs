@@ -2,10 +2,10 @@
 
 use crate::errors::IpnsError;
 use crate::record::IpnsRecord;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 
 /// Metadata associated with a stored IPNS record
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,16 +125,13 @@ impl LocalStore {
     /// Get an IPNS record
     pub fn get(&self, routing_key: &[u8]) -> Result<StoredRecord, IpnsError> {
         let records = self.records.read().unwrap();
-        
-        records
-            .get(routing_key)
-            .cloned()
-            .ok_or_else(|| {
-                IpnsError::NotFound(format!(
-                    "No record found for routing key: {}",
-                    bs58::encode(routing_key).into_string()
-                ))
-            })
+
+        records.get(routing_key).cloned().ok_or_else(|| {
+            IpnsError::NotFound(format!(
+                "No record found for routing key: {}",
+                bs58::encode(routing_key).into_string()
+            ))
+        })
     }
 
     /// Check if a record exists
@@ -146,7 +143,7 @@ impl LocalStore {
     /// Delete a record
     pub fn delete(&self, routing_key: &[u8]) -> Result<(), IpnsError> {
         let mut records = self.records.write().unwrap();
-        
+
         if records.remove(routing_key).is_some() {
             tracing::debug!(
                 "Deleted IPNS record for routing key: {}",
@@ -211,7 +208,9 @@ mod tests {
 
         // Put a record
         let metadata = RecordMetadata::new("my-key".to_string(), 48 * 60 * 60 * 1000);
-        store.put(routing_key, record.clone(), Some(metadata.clone())).unwrap();
+        store
+            .put(routing_key, record.clone(), Some(metadata.clone()))
+            .unwrap();
 
         // Should now have the record
         assert!(!store.is_empty());

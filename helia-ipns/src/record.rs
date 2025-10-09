@@ -1,9 +1,9 @@
 //! IPNS record types and validation
 
 use crate::errors::IpnsError;
-use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 use libp2p_identity::Keypair;
+use serde::{Deserialize, Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// IPNS record containing published content
 ///
@@ -64,16 +64,16 @@ impl IpnsRecord {
 pub struct IpnsCborData {
     #[serde(rename = "Value")]
     pub value: Vec<u8>,
-    
+
     #[serde(rename = "Validity")]
     pub validity: Vec<u8>,
-    
+
     #[serde(rename = "ValidityType")]
     pub validity_type: u64,
-    
+
     #[serde(rename = "Sequence")]
     pub sequence: u64,
-    
+
     #[serde(rename = "TTL")]
     pub ttl: u64,
 }
@@ -90,7 +90,7 @@ pub fn encode_cbor_data(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError> {
         sequence: record.sequence,
         ttl: record.ttl,
     };
-    
+
     // Use serde_ipld_dagcbor for deterministic encoding
     serde_ipld_dagcbor::to_vec(&cbor_data)
         .map_err(|e| IpnsError::MarshalingError(format!("Failed to encode CBOR: {}", e)))
@@ -111,14 +111,14 @@ pub fn decode_cbor_data(bytes: &[u8]) -> Result<IpnsCborData, IpnsError> {
 /// sorted alphabetically by key name
 fn create_signature_data_v2(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError> {
     let mut data = Vec::new();
-    
+
     // Add the "ipns-signature:" prefix (hex: 69706e732d7369676e61747572653a)
     data.extend_from_slice(b"ipns-signature:");
-    
+
     // Encode the record data as DAG-CBOR
     let cbor_bytes = encode_cbor_data(record)?;
     data.extend_from_slice(&cbor_bytes);
-    
+
     Ok(data)
 }
 
@@ -128,13 +128,13 @@ fn create_signature_data_v2(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError> {
 /// value + validity + string(validityType)
 fn create_signature_data_v1(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError> {
     let mut data = Vec::new();
-    
+
     // Concatenate: value + validity + validityType
     data.extend_from_slice(record.value.as_bytes());
     data.extend_from_slice(record.validity.as_bytes());
     // ValidityType 0 means EOL (expiration time)
     data.extend_from_slice(b"0");
-    
+
     Ok(data)
 }
 
@@ -157,13 +157,13 @@ pub fn sign_record(
     let signature_v2 = keypair
         .sign(&sig_data_v2)
         .map_err(|e| IpnsError::SigningFailed(format!("Failed to sign V2 data: {}", e)))?;
-    
+
     // Create V1 signature (legacy, for backward compatibility)
     let sig_data_v1 = create_signature_data_v1(record)?;
     let signature_v1 = keypair
         .sign(&sig_data_v1)
         .map_err(|e| IpnsError::SigningFailed(format!("Failed to sign V1 data: {}", e)))?;
-    
+
     Ok((signature_v1, signature_v2))
 }
 
@@ -175,54 +175,51 @@ pub fn sign_record(
 ///
 /// # Returns
 /// Ok(()) if signature is valid, Err otherwise
-pub fn verify_signature(
-    record: &IpnsRecord,
-    routing_key: Option<&[u8]>,
-) -> Result<(), IpnsError> {
-    use libp2p_identity::PublicKey;
+pub fn verify_signature(record: &IpnsRecord, routing_key: Option<&[u8]>) -> Result<(), IpnsError> {
     use crate::keys::routing_key_from_public_key;
-    
+    use libp2p_identity::PublicKey;
+
     // Decode the public key from the record
     let public_key = PublicKey::try_decode_protobuf(&record.public_key)
         .map_err(|e| IpnsError::Identity(format!("Failed to decode public key: {}", e)))?;
-    
+
     // If routing key is provided, verify it matches the public key
     if let Some(expected_key) = routing_key {
         let derived_key = routing_key_from_public_key(&public_key);
         if expected_key != derived_key.as_slice() {
             return Err(IpnsError::ValidationFailed(
-                "Routing key does not match public key".to_string()
+                "Routing key does not match public key".to_string(),
             ));
         }
     }
-    
+
     // Verify V2 signature (required)
     if let Some(sig_v2) = &record.signature_v2 {
         let sig_data_v2 = create_signature_data_v2(record)?;
-        
+
         if !public_key.verify(&sig_data_v2, sig_v2) {
             return Err(IpnsError::ValidationFailed(
-                "Invalid V2 signature".to_string()
+                "Invalid V2 signature".to_string(),
             ));
         }
     } else {
         return Err(IpnsError::ValidationFailed(
-            "Missing V2 signature".to_string()
+            "Missing V2 signature".to_string(),
         ));
     }
-    
+
     // V1 signature verification is optional (for backward compatibility)
     // If present, verify it
     if !record.signature.is_empty() {
         let sig_data_v1 = create_signature_data_v1(record)?;
-        
+
         if !public_key.verify(&sig_data_v1, &record.signature) {
             return Err(IpnsError::ValidationFailed(
-                "Invalid V1 signature".to_string()
+                "Invalid V1 signature".to_string(),
             ));
         }
     }
-    
+
     Ok(())
 }
 
@@ -236,12 +233,12 @@ pub fn unmarshal_record(bytes: &[u8]) -> Result<IpnsRecord, IpnsError> {
 
 /// Marshal an IPNS record to protobuf bytes
 pub fn marshal_record_protobuf(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError> {
-    use prost::Message;
     use crate::protobuf::IpnsEntry;
-    
+    use prost::Message;
+
     // Encode the record data as DAG-CBOR for the data field
     let cbor_data = encode_cbor_data(record)?;
-    
+
     // Create the protobuf entry
     let entry = IpnsEntry {
         value: record.value.as_bytes().to_vec(),
@@ -254,27 +251,28 @@ pub fn marshal_record_protobuf(record: &IpnsRecord) -> Result<Vec<u8>, IpnsError
         signature_v2: record.signature_v2.clone().unwrap_or_default(),
         data: cbor_data,
     };
-    
+
     // Encode to protobuf bytes
     let mut buf = Vec::new();
-    entry.encode(&mut buf)
+    entry
+        .encode(&mut buf)
         .map_err(|e| IpnsError::MarshalingError(format!("Failed to encode protobuf: {}", e)))?;
-    
+
     Ok(buf)
 }
 
 /// Unmarshal an IPNS record from protobuf bytes
 pub fn unmarshal_record_protobuf(bytes: &[u8]) -> Result<IpnsRecord, IpnsError> {
-    use prost::Message;
     use crate::protobuf::IpnsEntry;
-    
+    use prost::Message;
+
     // Decode the protobuf entry
     let entry = IpnsEntry::decode(bytes)
         .map_err(|e| IpnsError::MarshalingError(format!("Failed to decode protobuf: {}", e)))?;
-    
+
     // Decode the CBOR data
     let cbor_data = decode_cbor_data(&entry.data)?;
-    
+
     // Create the IpnsRecord from the entry
     // Use CBOR data as the source of truth (V2 standard)
     Ok(IpnsRecord {
@@ -286,7 +284,11 @@ pub fn unmarshal_record_protobuf(bytes: &[u8]) -> Result<IpnsRecord, IpnsError> 
         ttl: cbor_data.ttl,
         public_key: entry.pub_key,
         signature: entry.signature_v1,
-        signature_v2: if entry.signature_v2.is_empty() { None } else { Some(entry.signature_v2) },
+        signature_v2: if entry.signature_v2.is_empty() {
+            None
+        } else {
+            Some(entry.signature_v2)
+        },
     })
 }
 
@@ -326,9 +328,10 @@ pub fn validate_ipns_record(routing_key: &[u8], record: &[u8]) -> Result<(), Ipn
     }
 
     if !ipns_record.value.starts_with("/ipfs/") && !ipns_record.value.starts_with("/ipns/") {
-        return Err(IpnsError::InvalidRecord(
-            format!("Invalid value path: {}", ipns_record.value)
-        ));
+        return Err(IpnsError::InvalidRecord(format!(
+            "Invalid value path: {}",
+            ipns_record.value
+        )));
     }
 
     Ok(())
@@ -351,7 +354,7 @@ pub fn select_best_record(routing_key: &[u8], records: &[Vec<u8>]) -> Result<usi
 
     // Parse and validate all records, keeping track of valid ones
     let mut valid_records: Vec<(usize, IpnsRecord)> = Vec::new();
-    
+
     for (idx, record_bytes) in records.iter().enumerate() {
         // Try to validate this record
         if validate_ipns_record(routing_key, record_bytes).is_ok() {
@@ -363,7 +366,7 @@ pub fn select_best_record(routing_key: &[u8], records: &[Vec<u8>]) -> Result<usi
 
     if valid_records.is_empty() {
         return Err(IpnsError::ValidationFailed(
-            "No valid records found".to_string()
+            "No valid records found".to_string(),
         ));
     }
 

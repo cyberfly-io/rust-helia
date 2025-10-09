@@ -62,7 +62,7 @@ mod tests {
         let chunker = FixedSizeChunker::new(1024);
         let data = Bytes::from(vec![0u8; 512]);
         let chunks = chunker.chunk(data);
-        
+
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 512);
     }
@@ -72,7 +72,7 @@ mod tests {
         let chunker = FixedSizeChunker::new(1024);
         let data = Bytes::from(vec![0u8; 1024]);
         let chunks = chunker.chunk(data);
-        
+
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 1024);
     }
@@ -82,7 +82,7 @@ mod tests {
         let chunker = FixedSizeChunker::new(1024);
         let data = Bytes::from(vec![0u8; 3000]);
         let chunks = chunker.chunk(data);
-        
+
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].len(), 1024);
         assert_eq!(chunks[1].len(), 1024);

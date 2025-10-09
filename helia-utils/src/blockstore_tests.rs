@@ -6,24 +6,24 @@ mod tests {
     use cid::Cid;
     use futures::StreamExt;
     use helia_interface::{Blocks, InputPair};
-    
+
     use crate::{BlockstoreConfig, SledBlockstore};
 
     fn create_test_blockstore() -> SledBlockstore {
-        SledBlockstore::new(BlockstoreConfig { 
-            path: None, 
-            create_if_missing: true 
-        }).unwrap()
+        SledBlockstore::new(BlockstoreConfig {
+            path: None,
+            create_if_missing: true,
+        })
+        .unwrap()
     }
 
     fn create_test_cid() -> Cid {
         // Create a simple CID for testing using a fixed hash
         let hash_bytes = [
             0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
-            0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 
-            0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a, 0xd0, 0x15,
-            0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c,
-            0xd1, 0x5d, 0x6c, 0x15, 0xb0, 0xf0, 0x0a, 0x08
+            0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a,
+            0xd0, 0x15, 0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c, 0xd1, 0x5d, 0x6c, 0x15,
+            0xb0, 0xf0, 0x0a, 0x08,
         ];
         let mh = multihash::Multihash::from_bytes(&hash_bytes).unwrap();
         Cid::new_v1(0x55, mh) // 0x55 is raw codec
@@ -32,10 +32,9 @@ mod tests {
     fn create_test_cid_2() -> Cid {
         let hash_bytes = [
             0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
-            0xef, 0x53, 0x7f, 0x25, 0xc8, 0x95, 0xbf, 0xa7,
-            0x82, 0x52, 0x65, 0x29, 0xa9, 0xb6, 0x3d, 0x97,
-            0xaa, 0x63, 0x15, 0x64, 0xd5, 0xd7, 0x89, 0xc2,
-            0xb7, 0x65, 0x44, 0x8c, 0x86, 0x35, 0xfb, 0x6c
+            0xef, 0x53, 0x7f, 0x25, 0xc8, 0x95, 0xbf, 0xa7, 0x82, 0x52, 0x65, 0x29, 0xa9, 0xb6,
+            0x3d, 0x97, 0xaa, 0x63, 0x15, 0x64, 0xd5, 0xd7, 0x89, 0xc2, 0xb7, 0x65, 0x44, 0x8c,
+            0x86, 0x35, 0xfb, 0x6c,
         ];
         let mh = multihash::Multihash::from_bytes(&hash_bytes).unwrap();
         Cid::new_v1(0x55, mh)
@@ -44,10 +43,9 @@ mod tests {
     fn create_test_cid_3() -> Cid {
         let hash_bytes = [
             0x12, 0x20, // sha2-256 code (0x12) and length (0x20 = 32 bytes)
-            0x31, 0x5f, 0x5b, 0xdb, 0x76, 0xd0, 0x78, 0xc4,
-            0x3b, 0x8a, 0xc0, 0x06, 0x4e, 0x4a, 0x01, 0x64,
-            0x61, 0x2b, 0x1f, 0xce, 0x77, 0xc8, 0x69, 0x34,
-            0x5b, 0xfc, 0x94, 0xc7, 0x58, 0x94, 0xed, 0xd3
+            0x31, 0x5f, 0x5b, 0xdb, 0x76, 0xd0, 0x78, 0xc4, 0x3b, 0x8a, 0xc0, 0x06, 0x4e, 0x4a,
+            0x01, 0x64, 0x61, 0x2b, 0x1f, 0xce, 0x77, 0xc8, 0x69, 0x34, 0x5b, 0xfc, 0x94, 0xc7,
+            0x58, 0x94, 0xed, 0xd3,
         ];
         let mh = multihash::Multihash::from_bytes(&hash_bytes).unwrap();
         Cid::new_v1(0x55, mh)
@@ -77,7 +75,7 @@ mod tests {
         let blockstore = create_test_blockstore();
         let cid1 = create_test_cid();
         let cid2 = create_test_cid_2();
-        
+
         let data1 = Bytes::from("hello world");
         let data2 = Bytes::from("hello world 2");
 
@@ -86,7 +84,10 @@ mod tests {
         blockstore.put(&cid2, data2.clone(), None).await.unwrap();
 
         // Get many
-        let mut stream = blockstore.get_many_cids(vec![cid1, cid2], None).await.unwrap();
+        let mut stream = blockstore
+            .get_many_cids(vec![cid1, cid2], None)
+            .await
+            .unwrap();
         let mut results = Vec::new();
         while let Some(result) = stream.next().await {
             results.push(result);
@@ -95,10 +96,10 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert!(results[0].is_ok());
         assert!(results[1].is_ok());
-        
+
         let pair1 = results[0].as_ref().unwrap();
         let pair2 = results[1].as_ref().unwrap();
-        
+
         // Results might be in different order, so check both possibilities
         if pair1.cid == cid1 {
             assert_eq!(pair1.block, data1);
@@ -117,13 +118,19 @@ mod tests {
         let blockstore = create_test_blockstore();
         let cid1 = create_test_cid();
         let cid2 = create_test_cid_2();
-        
+
         let data1 = Bytes::from("hello world");
         let data2 = Bytes::from("hello world 2");
 
         let input_pairs = vec![
-            InputPair { cid: Some(cid1), block: data1.clone() },
-            InputPair { cid: Some(cid2), block: data2.clone() },
+            InputPair {
+                cid: Some(cid1),
+                block: data1.clone(),
+            },
+            InputPair {
+                cid: Some(cid2),
+                block: data2.clone(),
+            },
         ];
 
         // Put many blocks
@@ -150,11 +157,20 @@ mod tests {
         let cid3 = create_test_cid_3();
 
         // Put only cid1 and cid2
-        blockstore.put(&cid1, Bytes::from("hello world"), None).await.unwrap();
-        blockstore.put(&cid2, Bytes::from("hello world 2"), None).await.unwrap();
+        blockstore
+            .put(&cid1, Bytes::from("hello world"), None)
+            .await
+            .unwrap();
+        blockstore
+            .put(&cid2, Bytes::from("hello world 2"), None)
+            .await
+            .unwrap();
 
         // Check has many
-        let mut stream = blockstore.has_many_cids(vec![cid1, cid2, cid3], None).await.unwrap();
+        let mut stream = blockstore
+            .has_many_cids(vec![cid1, cid2, cid3], None)
+            .await
+            .unwrap();
         let mut results = Vec::new();
         while let Some(exists) = stream.next().await {
             results.push(exists);
@@ -171,7 +187,7 @@ mod tests {
         let blockstore = create_test_blockstore();
         let cid1 = create_test_cid();
         let cid2 = create_test_cid_2();
-        
+
         let data1 = Bytes::from("hello world");
         let data2 = Bytes::from("hello world 2");
 
@@ -198,7 +214,7 @@ mod tests {
         let blockstore = create_test_blockstore();
         let cid1 = create_test_cid();
         let cid2 = create_test_cid_2();
-        
+
         let data1 = Bytes::from("hello world");
         let data2 = Bytes::from("hello world 2");
 
@@ -211,7 +227,10 @@ mod tests {
         assert!(blockstore.has(&cid2, None).await.unwrap());
 
         // Delete many
-        let mut stream = blockstore.delete_many_cids(vec![cid1, cid2], None).await.unwrap();
+        let mut stream = blockstore
+            .delete_many_cids(vec![cid1, cid2], None)
+            .await
+            .unwrap();
         let mut deleted_cids = Vec::new();
         while let Some(cid) = stream.next().await {
             deleted_cids.push(cid);

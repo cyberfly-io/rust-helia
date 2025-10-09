@@ -3,7 +3,7 @@
 
 use crate::{
     constants::*,
-    pb::{WantType, BlockPresenceType},
+    pb::{BlockPresenceType, WantType},
     utils::QueuedBitswapMessage,
 };
 use bytes::Bytes;
@@ -123,9 +123,7 @@ impl PeerWantLists {
         send_dont_have: bool,
     ) {
         let mut peers = self.peers.write().await;
-        let peer_wantlist = peers
-            .entry(peer)
-            .or_insert_with(|| PeerWantList::new(peer));
+        let peer_wantlist = peers.entry(peer).or_insert_with(|| PeerWantList::new(peer));
 
         trace!(
             "Peer {} wants {} (type: {:?}, priority: {})",
@@ -152,28 +150,19 @@ impl PeerWantLists {
     /// Check if a peer wants a CID
     pub async fn has_want(&self, peer: &PeerId, cid: &Cid) -> bool {
         let peers = self.peers.read().await;
-        peers
-            .get(peer)
-            .map(|p| p.has_want(cid))
-            .unwrap_or(false)
+        peers.get(peer).map(|p| p.has_want(cid)).unwrap_or(false)
     }
 
     /// Check if a peer wants the full block
     pub async fn wants_block(&self, peer: &PeerId, cid: &Cid) -> bool {
         let peers = self.peers.read().await;
-        peers
-            .get(peer)
-            .map(|p| p.wants_block(cid))
-            .unwrap_or(false)
+        peers.get(peer).map(|p| p.wants_block(cid)).unwrap_or(false)
     }
 
     /// Check if a peer wants to know if we have the block
     pub async fn wants_have(&self, peer: &PeerId, cid: &Cid) -> bool {
         let peers = self.peers.read().await;
-        peers
-            .get(peer)
-            .map(|p| p.wants_have(cid))
-            .unwrap_or(false)
+        peers.get(peer).map(|p| p.wants_have(cid)).unwrap_or(false)
     }
 
     /// Get all peers that want a CID
@@ -247,7 +236,10 @@ impl PeerWantLists {
     }
 
     /// Create "don't have" messages for peers
-    pub async fn create_dont_have_messages(&self, cid: &Cid) -> HashMap<PeerId, QueuedBitswapMessage> {
+    pub async fn create_dont_have_messages(
+        &self,
+        cid: &Cid,
+    ) -> HashMap<PeerId, QueuedBitswapMessage> {
         let peers = self.peers.read().await;
         let mut messages = HashMap::new();
 

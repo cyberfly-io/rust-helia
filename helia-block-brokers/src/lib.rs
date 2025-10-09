@@ -2,8 +2,8 @@
 //!
 //! This crate provides abstractions for coordinating block retrieval from multiple sources.
 
-pub mod trustless_gateway;
 pub mod bitswap;
+pub mod trustless_gateway;
 
 use bytes::Bytes;
 use cid::Cid;

@@ -5,11 +5,11 @@
 //! - Using the SimpleCar in-memory implementation
 //! - Adding and retrieving blocks
 
-use rust_helia::create_helia;
-use helia_interface::Helia;
-use helia_car::SimpleCar;
-use helia_unixfs::{UnixFS, UnixFSInterface};
 use bytes::Bytes;
+use helia_car::SimpleCar;
+use helia_interface::Helia;
+use helia_unixfs::{UnixFS, UnixFSInterface};
+use rust_helia::create_helia;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize Helia
     let helia = Arc::new(create_helia(None).await?);
     helia.start().await?;
-    
+
     let fs = UnixFS::new(helia.clone());
 
     // 1. Create some content
@@ -27,11 +27,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file1 = Bytes::from("This is file 1");
     let file2 = Bytes::from("This is file 2 with more content");
     let file3 = Bytes::from("File 3 content here");
-    
+
     let cid1 = fs.add_bytes(file1.clone(), None).await?;
     let cid2 = fs.add_bytes(file2.clone(), None).await?;
     let cid3 = fs.add_bytes(file3.clone(), None).await?;
-    
+
     println!("   ✓ File 1 CID: {}", cid1);
     println!("   ✓ File 2 CID: {}", cid2);
     println!("   ✓ File 3 CID: {}\n", cid3);
@@ -59,7 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("   ✓ Retrieved file 2: {:?}", String::from_utf8_lossy(data));
     }
     if let Some(data) = car.get_block(&cid3) {
-        println!("   ✓ Retrieved file 3: {:?}\n", String::from_utf8_lossy(data));
+        println!(
+            "   ✓ Retrieved file 3: {:?}\n",
+            String::from_utf8_lossy(data)
+        );
     }
 
     // 5. List all blocks

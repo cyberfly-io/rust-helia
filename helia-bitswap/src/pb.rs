@@ -103,15 +103,18 @@ pub struct BitswapMessage {
     /// Wantlist (optional)
     #[prost(message, optional, tag = "1")]
     pub wantlist: Option<Wantlist>,
-    /// Blocks being sent
+    /// Raw block data (legacy field for compatibility)
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub raw_blocks: Vec<Vec<u8>>,
+    /// Block presence information (HAVE / DONT_HAVE)
     #[prost(message, repeated, tag = "3")]
-    pub blocks: Vec<Block>,
-    /// Block presence information
-    #[prost(message, repeated, tag = "4")]
     pub block_presences: Vec<BlockPresence>,
     /// Number of bytes pending to be sent
-    #[prost(int32, tag = "5")]
+    #[prost(int32, tag = "4", default = "0")]
     pub pending_bytes: i32,
+    /// Structured block payload (Bitswap 1.2+)
+    #[prost(message, repeated, tag = "5")]
+    pub blocks: Vec<Block>,
 }
 
 impl BitswapMessage {
@@ -129,8 +132,11 @@ impl BitswapMessage {
 
     /// Check if message is empty
     pub fn is_empty(&self) -> bool {
-        self.wantlist.as_ref().map_or(true, |w| w.entries.is_empty())
+        self.wantlist
+            .as_ref()
+            .map_or(true, |w| w.entries.is_empty())
             && self.blocks.is_empty()
+            && self.raw_blocks.is_empty()
             && self.block_presences.is_empty()
     }
 
@@ -208,6 +214,7 @@ mod tests {
                 entries: vec![WantlistEntry::new_block_request(vec![1, 2, 3], 10)],
                 full: false,
             }),
+            raw_blocks: vec![],
             blocks: vec![],
             block_presences: vec![],
             pending_bytes: 0,
@@ -228,6 +235,9 @@ mod tests {
     #[test]
     fn test_block_presence_type_conversion() {
         assert_eq!(BlockPresenceType::from(0), BlockPresenceType::HaveBlock);
-        assert_eq!(BlockPresenceType::from(1), BlockPresenceType::DoNotHaveBlock);
+        assert_eq!(
+            BlockPresenceType::from(1),
+            BlockPresenceType::DoNotHaveBlock
+        );
     }
 }

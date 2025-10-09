@@ -1,7 +1,7 @@
 // DAG-PB encoding/decoding for UnixFS
 // Based on: https://github.com/ipld/specs/blob/master/block-layer/codecs/dag-pb.md
 
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use cid::Cid;
 
 /// DAG-PB Link
@@ -85,7 +85,10 @@ impl PBNode {
                     cursor = rest;
                 }
                 _ => {
-                    return Err(format!("Unknown field: {} with wire type {:?}", field_number, wire_type));
+                    return Err(format!(
+                        "Unknown field: {} with wire type {:?}",
+                        field_number, wire_type
+                    ));
                 }
             }
         }
@@ -110,12 +113,12 @@ fn encode_field(buf: &mut BytesMut, field_number: u32, wire_type: WireType, data
     // Encode tag (field_number << 3 | wire_type)
     let tag = (field_number << 3) | (wire_type as u32);
     encode_varint(buf, tag as u64);
-    
+
     // Encode length for length-delimited fields
     if wire_type == WireType::LengthDelimited {
         encode_varint(buf, data.len() as u64);
     }
-    
+
     // Encode data
     buf.put_slice(data);
 }
@@ -148,7 +151,7 @@ fn decode_field_header(data: &[u8]) -> Result<(u32, WireType, &[u8]), String> {
 fn decode_varint(data: &[u8]) -> Result<(u64, &[u8]), String> {
     let mut value = 0u64;
     let mut shift = 0;
-    
+
     for (i, &byte) in data.iter().enumerate() {
         value |= ((byte & 0x7F) as u64) << shift;
         if byte & 0x80 == 0 {
@@ -159,18 +162,22 @@ fn decode_varint(data: &[u8]) -> Result<(u64, &[u8]), String> {
             return Err("Varint overflow".to_string());
         }
     }
-    
+
     Err("Unexpected end of varint".to_string())
 }
 
 fn decode_bytes(data: &[u8]) -> Result<(&[u8], &[u8]), String> {
     let (length, rest) = decode_varint(data)?;
     let length = length as usize;
-    
+
     if rest.len() < length {
-        return Err(format!("Not enough bytes: expected {}, got {}", length, rest.len()));
+        return Err(format!(
+            "Not enough bytes: expected {}, got {}",
+            length,
+            rest.len()
+        ));
     }
-    
+
     Ok((&rest[..length], &rest[length..]))
 }
 
@@ -217,8 +224,7 @@ fn decode_link(bytes: &[u8]) -> Result<PBLink, String> {
             (1, WireType::LengthDelimited) => {
                 // Hash field (CID)
                 let (cid_bytes, rest) = decode_bytes(cursor)?;
-                let cid = Cid::try_from(cid_bytes)
-                    .map_err(|e| format!("Invalid CID: {}", e))?;
+                let cid = Cid::try_from(cid_bytes).map_err(|e| format!("Invalid CID: {}", e))?;
                 link.hash = Some(cid);
                 cursor = rest;
             }
@@ -268,7 +274,7 @@ mod tests {
     #[test]
     fn test_varint_encoding() {
         let test_cases = vec![0u64, 1, 127, 128, 255, 256, 65535, 1000000];
-        
+
         for value in test_cases {
             let mut buf = BytesMut::new();
             encode_varint(&mut buf, value);

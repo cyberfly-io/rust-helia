@@ -36,3 +36,6 @@ bytes.workspace = true
 tokio.workspace = true
 futures.workspace = true
 rust-helia = { version = "0.1.2", path = "../rust-helia" }
+helia-utils = { version = "0.1.2", path = "../helia-utils" }
+helia-bitswap = { version = "0.1.2", path = "../helia-bitswap" }
+libp2p = { workspace = true, features = ["pnet"] }

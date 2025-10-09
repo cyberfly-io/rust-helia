@@ -1,11 +1,11 @@
 //! libp2p behavior implementation for Helia
 
 use helia_bitswap::BitswapBehaviour;
+use libp2p::identity::Keypair;
 use libp2p::{
     autonat, dcutr, gossipsub, identify, kad, mdns, noise, ping, relay, swarm::NetworkBehaviour,
     tcp, yamux, StreamProtocol, Swarm, SwarmBuilder,
 };
-use libp2p::identity::Keypair;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -62,7 +62,7 @@ pub async fn create_swarm_with_keypair(
     keypair: Keypair,
 ) -> Result<Swarm<HeliaBehaviour>, Box<dyn std::error::Error>> {
     let local_peer_id = keypair.public().to_peer_id();
-    
+
     // Create the behaviour
     let behaviour = create_behaviour(keypair.clone(), local_peer_id).await?;
 
@@ -106,7 +106,7 @@ async fn create_behaviour(
         .validation_mode(gossipsub::ValidationMode::Strict)
         .build()
         .expect("Valid config");
-    
+
     // Generate a deterministic message-id function from the peer ID
     let _message_id_fn = |message: &gossipsub::Message| {
         let mut s = DefaultHasher::new();
@@ -125,7 +125,7 @@ async fn create_behaviour(
     // Create AutoNAT behaviour
     let autonat = autonat::Behaviour::new(local_peer_id, autonat::Config::default());
 
-    // Create Relay behaviour  
+    // Create Relay behaviour
     let relay = relay::Behaviour::new(local_peer_id, relay::Config::default());
 
     // Create DCUtR behaviour

@@ -2,25 +2,29 @@
 //!
 //! IPNS provides mutable pointers to content-addressed data.
 
-mod errors;
-mod local_store;
-pub mod routing;
-mod ipns_impl;
-pub mod record;
 mod constants;
+mod errors;
+mod ipns_impl;
 pub mod keys;
+mod local_store;
 mod protobuf;
+pub mod record;
+pub mod routing;
 
 pub use errors::IpnsError;
 pub use local_store::{LocalStore, RecordMetadata};
-pub use routing::{IpnsRouting, RoutingEvent, DhtRouter, LocalRouter, HttpRouter, PutOptions, GetOptions};
-pub use record::{IpnsRecord, validate_ipns_record, select_best_record, sign_record, verify_signature};
+pub use record::{
+    select_best_record, sign_record, validate_ipns_record, verify_signature, IpnsRecord,
+};
+pub use routing::{
+    DhtRouter, GetOptions, HttpRouter, IpnsRouting, LocalRouter, PutOptions, RoutingEvent,
+};
 
-use std::sync::Arc;
-use std::time::Duration;
 use async_trait::async_trait;
 use cid::Cid;
 use libp2p_identity::PeerId;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub use constants::*;
 

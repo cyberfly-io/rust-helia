@@ -23,12 +23,12 @@
 //! }
 //! ```
 
-use std::sync::Arc;
-use cid::Cid;
 use async_trait::async_trait;
-use helia_interface::Helia;
-use sha2::{Sha256, Digest};
 use bytes::Bytes;
+use cid::Cid;
+use helia_interface::Helia;
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 /// Error types for string operations
 #[derive(Debug, thiserror::Error)]
@@ -60,7 +60,7 @@ pub trait StringsInterface: Send + Sync {
     /// Add a string to your Helia node and get a CID that refers to the block the
     /// string has been stored as.
     async fn add(&self, string: &str, options: Option<AddOptions>) -> Result<Cid, StringsError>;
-    
+
     /// Get a string from your Helia node, either previously added to it or to
     /// another node on the network.
     async fn get(&self, cid: Cid, options: Option<GetOptions>) -> Result<String, StringsError>;
@@ -82,27 +82,30 @@ impl StringsInterface for DefaultStrings {
     async fn add(&self, string: &str, options: Option<AddOptions>) -> Result<Cid, StringsError> {
         let _options = options.unwrap_or_default();
         let data = string.as_bytes();
-        
+
         // Use SHA-256 hasher (matching JavaScript implementation)
         let mut sha256 = Sha256::new();
         sha256.update(data);
         let hash_bytes = sha256.finalize();
-        
+
         // Create multihash with SHA-256 (0x12)
         let mh: multihash::Multihash<64> = multihash::Multihash::wrap(0x12, &hash_bytes)
             .map_err(|e| StringsError::Blockstore(format!("Multihash error: {}", e)))?;
-        
+
         // Create CID v1 with raw codec (0x55)
         let cid = Cid::new_v1(0x55, mh);
-        
+
         // Store the raw bytes as Bytes
         let bytes = Bytes::from(data.to_vec());
-        self.helia.blockstore().put(&cid, bytes, None).await
+        self.helia
+            .blockstore()
+            .put(&cid, bytes, None)
+            .await
             .map_err(|e| StringsError::Blockstore(format!("Failed to store block: {}", e)))?;
-        
+
         Ok(cid)
     }
-    
+
     async fn get(&self, cid: Cid, _options: Option<GetOptions>) -> Result<String, StringsError> {
         // Check codec - allow raw (0x55), JSON (0x0129), and DAG-JSON (0x0200)
         // This matches the JavaScript implementation behavior
@@ -116,10 +119,14 @@ impl StringsInterface for DefaultStrings {
                 ));
             }
         }
-        
-        let data = self.helia.blockstore().get(&cid, None).await
+
+        let data = self
+            .helia
+            .blockstore()
+            .get(&cid, None)
+            .await
             .map_err(|e| StringsError::Blockstore(format!("Failed to get block: {}", e)))?;
-        
+
         String::from_utf8(data.to_vec()).map_err(StringsError::Utf8)
     }
 }
@@ -150,7 +157,11 @@ mod tests {
     use std::sync::Arc;
 
     async fn create_test_helia() -> Arc<dyn Helia> {
-        Arc::new(create_helia_default().await.expect("Failed to create Helia instance"))
+        Arc::new(
+            create_helia_default()
+                .await
+                .expect("Failed to create Helia instance"),
+        )
     }
 
     #[tokio::test]
@@ -159,7 +170,7 @@ mod tests {
         let str_interface = strings(helia);
 
         let cid = str_interface.add("hello world", None).await.unwrap();
-        
+
         // Verify CID format
         assert_eq!(cid.codec(), 0x55); // raw codec
     }
@@ -172,7 +183,7 @@ mod tests {
         let original = "hello world";
         let cid = str_interface.add(original, None).await.unwrap();
         let retrieved = str_interface.get(cid, None).await.unwrap();
-        
+
         assert_eq!(retrieved, original);
     }
 
@@ -184,7 +195,7 @@ mod tests {
         let original = "";
         let cid = str_interface.add(original, None).await.unwrap();
         let retrieved = str_interface.get(cid, None).await.unwrap();
-        
+
         assert_eq!(retrieved, original);
     }
 
@@ -196,7 +207,7 @@ mod tests {
         let original = "Hello, 世界! 🌍";
         let cid = str_interface.add(original, None).await.unwrap();
         let retrieved = str_interface.get(cid, None).await.unwrap();
-        
+
         assert_eq!(retrieved, original);
     }
 
@@ -208,7 +219,7 @@ mod tests {
         let original = "Line 1\nLine 2\nLine 3";
         let cid = str_interface.add(original, None).await.unwrap();
         let retrieved = str_interface.get(cid, None).await.unwrap();
-        
+
         assert_eq!(retrieved, original);
     }
 
@@ -222,7 +233,7 @@ mod tests {
         let content = "deterministic content";
         let cid1 = str1.add(content, None).await.unwrap();
         let cid2 = str2.add(content, None).await.unwrap();
-        
+
         assert_eq!(cid1, cid2, "Same content should produce same CID");
     }
 
@@ -234,10 +245,10 @@ mod tests {
         // Create a CID with an invalid codec for strings (using DAG-CBOR codec)
         let mh: multihash::Multihash<64> = multihash::Multihash::wrap(0x12, &[0u8; 32]).unwrap();
         let invalid_cid = Cid::new_v1(0x71, mh);
-        
+
         let result = str_interface.get(invalid_cid, None).await;
         assert!(result.is_err());
-        
+
         if let Err(StringsError::InvalidCodec(msg)) = result {
             assert!(msg.contains("incorrect codec"));
         } else {
@@ -253,10 +264,10 @@ mod tests {
         // Create a valid raw CID that doesn't exist in the blockstore
         let mh: multihash::Multihash<64> = multihash::Multihash::wrap(0x12, &[1u8; 32]).unwrap();
         let nonexistent_cid = Cid::new_v1(0x55, mh);
-        
+
         let result = str_interface.get(nonexistent_cid, None).await;
         assert!(result.is_err());
-        
+
         if let Err(StringsError::Blockstore(_)) = result {
             // Expected error type
         } else {

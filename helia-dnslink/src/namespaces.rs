@@ -1,11 +1,11 @@
-use crate::{DnsLinkError, DnsLinkResult, resolver::TxtRecord};
+use crate::{resolver::TxtRecord, DnsLinkError, DnsLinkResult};
 use cid::Cid;
 use libp2p_identity::PeerId;
 use tracing::debug;
 
 pub fn parse_ipfs(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLinkError> {
     let parts: Vec<&str> = value.split('/').filter(|s| !s.is_empty()).collect();
-    
+
     if parts.is_empty() || parts[0] != "ipfs" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'ipfs' namespace, got: {}",
@@ -15,7 +15,7 @@ pub fn parse_ipfs(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
 
     if parts.len() < 2 {
         return Err(DnsLinkError::InvalidFormat(
-            "Missing CID after /ipfs/".to_string()
+            "Missing CID after /ipfs/".to_string(),
         ));
     }
 
@@ -41,7 +41,7 @@ pub fn parse_ipfs(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
 
 pub fn parse_ipns(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLinkError> {
     let parts: Vec<&str> = value.split('/').filter(|s| !s.is_empty()).collect();
-    
+
     if parts.is_empty() || parts[0] != "ipns" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'ipns' namespace, got: {}",
@@ -51,12 +51,13 @@ pub fn parse_ipns(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
 
     if parts.len() < 2 {
         return Err(DnsLinkError::InvalidFormat(
-            "Missing peer ID after /ipns/".to_string()
+            "Missing peer ID after /ipns/".to_string(),
         ));
     }
 
     let peer_id_str = parts[1];
-    let peer_id = peer_id_str.parse::<PeerId>()
+    let peer_id = peer_id_str
+        .parse::<PeerId>()
         .map_err(|e| DnsLinkError::InvalidPeerId(format!("{}: {}", peer_id_str, e)))?;
 
     let path = if parts.len() > 2 {
@@ -77,7 +78,7 @@ pub fn parse_ipns(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
 
 pub fn extract_dnslink_domain(value: &str) -> Result<String, DnsLinkError> {
     let parts: Vec<&str> = value.split('/').filter(|s| !s.is_empty()).collect();
-    
+
     if parts.is_empty() || parts[0] != "dnslink" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'dnslink' namespace, got: {}",
@@ -87,7 +88,7 @@ pub fn extract_dnslink_domain(value: &str) -> Result<String, DnsLinkError> {
 
     if parts.len() < 2 {
         return Err(DnsLinkError::InvalidFormat(
-            "Missing domain after /dnslink/".to_string()
+            "Missing domain after /dnslink/".to_string(),
         ));
     }
 
@@ -99,8 +100,9 @@ pub fn extract_dnslink_domain(value: &str) -> Result<String, DnsLinkError> {
 pub fn parse_txt_value(txt_data: &str) -> Option<String> {
     let mut value = txt_data.trim();
 
-    if (value.starts_with('"') && value.ends_with('"')) ||
-       (value.starts_with('\'') && value.ends_with('\'')) {
+    if (value.starts_with('"') && value.ends_with('"'))
+        || (value.starts_with('\'') && value.ends_with('\''))
+    {
         value = &value[1..value.len() - 1];
     }
 
@@ -109,7 +111,7 @@ pub fn parse_txt_value(txt_data: &str) -> Option<String> {
     }
 
     let value = value.strip_prefix("dnslink=")?;
-    
+
     if !value.starts_with('/') {
         return None;
     }
