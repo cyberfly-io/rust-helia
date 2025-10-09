@@ -1,5 +1,6 @@
 //! libp2p behavior implementation for Helia
 
+use helia_bitswap::BitswapBehaviour;
 use libp2p::{
     autonat, dcutr, gossipsub, identify, kad, mdns, noise, ping, relay, swarm::NetworkBehaviour,
     tcp, yamux, StreamProtocol, Swarm, SwarmBuilder,
@@ -28,6 +29,8 @@ pub struct HeliaBehaviour {
     pub relay: relay::Behaviour,
     /// DCUtR (Direct Connection Upgrade through Relay)
     pub dcutr: dcutr::Behaviour,
+    /// Bitswap protocol for block exchange
+    pub bitswap: BitswapBehaviour,
 }
 
 /// Create a libp2p Swarm with Helia's default configuration
@@ -128,6 +131,9 @@ async fn create_behaviour(
     // Create DCUtR behaviour
     let dcutr = dcutr::Behaviour::new(local_peer_id);
 
+    // Create Bitswap behaviour
+    let bitswap = BitswapBehaviour::new();
+
     Ok(HeliaBehaviour {
         ping,
         identify,
@@ -137,6 +143,7 @@ async fn create_behaviour(
         autonat,
         relay,
         dcutr,
+        bitswap,
     })
 }
 

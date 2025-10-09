@@ -35,3 +35,4 @@ bytes.workspace = true
 [dev-dependencies]
 tokio.workspace = true
 futures.workspace = true
+rust-helia = { version = "0.1.2", path = "../rust-helia" }

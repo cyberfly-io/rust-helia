@@ -13,6 +13,8 @@ pub mod utils;
 pub mod network_new;
 pub mod wantlist_new;
 pub mod peer_want_lists;
+pub mod coordinator;
+pub mod behaviour;
 
 // Session module (to be rewritten)
 pub mod session;
@@ -26,6 +28,8 @@ pub use utils::*;
 pub use network_new::{Network, NetworkInit, NetworkEvent, BitswapMessageEvent};
 pub use wantlist_new::{WantList, WantListEntry, WantResult};
 pub use peer_want_lists::{PeerWantLists, PeerWantListsStats};
+pub use coordinator::{Bitswap, BitswapConfig, BitswapStats, WantOptions, NotifyOptions};
+pub use behaviour::{BitswapBehaviour, BitswapEvent};
 
 // Session exports (temporary until rewrite)
 pub use session::*;

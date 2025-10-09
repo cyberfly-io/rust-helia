@@ -7,6 +7,7 @@
 
 pub mod helia;
 pub mod blockstore;
+pub mod blockstore_with_bitswap;
 pub mod datastore;
 pub mod logger;
 pub mod metrics;
@@ -22,6 +23,7 @@ use std::sync::Arc;
 
 pub use helia::{HeliaImpl, DummyRouting, SimplePins};
 pub use blockstore::SledBlockstore;
+pub use blockstore_with_bitswap::BlockstoreWithBitswap;
 pub use datastore::SledDatastore;
 pub use logger::TracingLogger;
 pub use metrics::SimpleMetrics;

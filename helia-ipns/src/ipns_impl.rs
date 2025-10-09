@@ -67,16 +67,21 @@ impl IpnsImpl {
         let public_key = keypair.public();
         let public_key_bytes = public_key.encode_protobuf();
 
-        // Create the record
-        let record = IpnsRecord {
+        // Create the record (without signatures first)
+        let mut record = IpnsRecord {
             value: value.to_string(),
             sequence,
             validity,
             ttl: ttl_ns,
             public_key: public_key_bytes,
-            signature: vec![], // Placeholder - in full implementation, sign the record
+            signature: vec![],
             signature_v2: None,
         };
+
+        // Sign the record
+        let (sig_v1, sig_v2) = crate::record::sign_record(keypair, &record)?;
+        record.signature = sig_v1;
+        record.signature_v2 = Some(sig_v2);
 
         Ok(record)
     }
@@ -580,16 +585,21 @@ impl IpnsImpl {
         let public_key = keypair.public();
         let public_key_bytes = public_key.encode_protobuf();
 
-        // Create the record
-        let record = IpnsRecord {
+        // Create the record (without signatures first)
+        let mut record = IpnsRecord {
             value: value.to_string(),
             sequence,
             validity,
             ttl: ttl_ns,
             public_key: public_key_bytes,
-            signature: vec![0u8; 64], // Placeholder signature
-            signature_v2: Some(vec![0u8; 64]),
+            signature: vec![],
+            signature_v2: None,
         };
+
+        // Sign the record
+        let (sig_v1, sig_v2) = crate::record::sign_record(keypair, &record)?;
+        record.signature = sig_v1;
+        record.signature_v2 = Some(sig_v2);
 
         Ok(record)
     }

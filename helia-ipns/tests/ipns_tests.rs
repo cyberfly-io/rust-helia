@@ -324,3 +324,388 @@ async fn test_multiple_start_stop() {
     assert!(name.stop().await.is_ok()); // Should be idempotent
     assert!(name.stop().await.is_ok());
 }
+
+// ============ Signature Tests ============
+
+#[tokio::test]
+async fn test_signature_generation() {
+    // Test that signatures are generated and not empty
+    let name = ipns(IpnsInit::default()).unwrap();
+    let cid: Cid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+        .parse()
+        .unwrap();
+    
+    let mut options = PublishOptions::default();
+    options.offline = true;
+    
+    let result = name.publish("test-key", &cid, options).await.unwrap();
+    
+    // Check that signatures are not empty
+    assert!(!result.record.signature.is_empty(), "V1 signature should not be empty");
+    assert!(result.record.signature_v2.is_some(), "V2 signature should exist");
+    assert!(!result.record.signature_v2.unwrap().is_empty(), "V2 signature should not be empty");
+}
+
+#[tokio::test]
+async fn test_signature_verification_valid() {
+    use helia_ipns::record::{IpnsRecord, verify_signature};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    
+    // Create a test keypair
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    
+    // Create a test record
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest".to_string(),
+        sequence: 1,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign the record
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Verify should succeed
+    let result = verify_signature(&record, None);
+    assert!(result.is_ok(), "Valid signature should verify successfully");
+}
+
+#[tokio::test]
+async fn test_signature_verification_invalid() {
+    use helia_ipns::record::{IpnsRecord, verify_signature};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    
+    // Create a test keypair
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    
+    // Create a test record
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest".to_string(),
+        sequence: 1,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign the record
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Tamper with the record value
+    record.value = "/ipfs/QmTamperedValue".to_string();
+    
+    // Verification should fail
+    let result = verify_signature(&record, None);
+    assert!(result.is_err(), "Tampered record should fail verification");
+}
+
+#[tokio::test]
+async fn test_signature_verification_wrong_key() {
+    use helia_ipns::record::{IpnsRecord, verify_signature};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    use helia_ipns::keys::routing_key_from_public_key;
+    
+    // Create two different keypairs
+    let keypair1 = Keypair::generate_ed25519();
+    let keypair2 = Keypair::generate_ed25519();
+    
+    let public_key1 = keypair1.public();
+    let public_key2 = keypair2.public();
+    
+    // Create a record signed by keypair1
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest".to_string(),
+        sequence: 1,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key1.encode_protobuf(),
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign with keypair1
+    let (sig_v1, sig_v2) = sign_record(&keypair1, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Try to verify with routing key from keypair2
+    let wrong_routing_key = routing_key_from_public_key(&public_key2);
+    let result = verify_signature(&record, Some(&wrong_routing_key));
+    
+    // Should fail because routing key doesn't match
+    assert!(result.is_err(), "Wrong routing key should fail verification");
+}
+
+#[tokio::test]
+async fn test_publish_creates_valid_signatures() {
+    // Test that publish creates records that can be verified
+    let name = ipns(IpnsInit::default()).unwrap();
+    let cid: Cid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+        .parse()
+        .unwrap();
+    
+    let mut options = PublishOptions::default();
+    options.offline = true;
+    
+    let result = name.publish("test-key", &cid, options).await.unwrap();
+    
+    // Verify the published record
+    use helia_ipns::record::verify_signature;
+    let verify_result = verify_signature(&result.record, None);
+    assert!(verify_result.is_ok(), "Published record should have valid signature");
+}
+
+#[tokio::test]
+async fn test_validation_with_signatures() {
+    use helia_ipns::record::{validate_ipns_record, IpnsRecord};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    use helia_ipns::keys::routing_key_from_public_key;
+    
+    // Create a test keypair
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    let routing_key = routing_key_from_public_key(&public_key);
+    
+    // Create a valid record
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest".to_string(),
+        sequence: 1,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign the record
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Marshal the record
+    let record_bytes = serde_json::to_vec(&record).unwrap();
+    
+    // Validation should succeed
+    let result = validate_ipns_record(&routing_key, &record_bytes);
+    assert!(result.is_ok(), "Valid record should pass validation");
+}
+
+#[tokio::test]
+async fn test_validation_rejects_expired() {
+    use helia_ipns::record::{validate_ipns_record, IpnsRecord};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    use helia_ipns::keys::routing_key_from_public_key;
+    
+    // Create a test keypair
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    let routing_key = routing_key_from_public_key(&public_key);
+    
+    // Create an expired record
+    let validity = chrono::Utc::now() - chrono::Duration::hours(1);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest".to_string(),
+        sequence: 1,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign the record
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Marshal the record
+    let record_bytes = serde_json::to_vec(&record).unwrap();
+    
+    // Validation should fail due to expiry
+    let result = validate_ipns_record(&routing_key, &record_bytes);
+    assert!(result.is_err(), "Expired record should fail validation");
+}
+
+#[tokio::test]
+async fn test_select_best_record() {
+    use helia_ipns::record::{select_best_record, IpnsRecord};
+    use libp2p_identity::Keypair;
+    use helia_ipns::record::sign_record;
+    use helia_ipns::keys::routing_key_from_public_key;
+    
+    // Create a test keypair
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    let routing_key = routing_key_from_public_key(&public_key);
+    
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    
+    // Create three records with different sequence numbers
+    let mut records_bytes = Vec::new();
+    for seq in [1, 3, 2] {
+        let mut record = IpnsRecord {
+            value: format!("/ipfs/QmTest{}", seq),
+            sequence: seq,
+            validity: validity.to_rfc3339(),
+            ttl: 300_000_000_000,
+            public_key: public_key_bytes.clone(),
+            signature: vec![],
+            signature_v2: None,
+        };
+        
+        let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+        record.signature = sig_v1;
+        record.signature_v2 = Some(sig_v2);
+        
+        records_bytes.push(serde_json::to_vec(&record).unwrap());
+    }
+    
+    // Select best should return index 1 (sequence 3)
+    let best_idx = select_best_record(&routing_key, &records_bytes).unwrap();
+    assert_eq!(best_idx, 1, "Should select record with highest sequence number");
+}
+
+// ============ Protobuf Tests ============
+
+#[tokio::test]
+async fn test_protobuf_marshal_unmarshal_roundtrip() {
+    use helia_ipns::record::{IpnsRecord, marshal_record_protobuf, unmarshal_record_protobuf, sign_record};
+    use libp2p_identity::Keypair;
+    
+    // Create a test keypair and record
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest123".to_string(),
+        sequence: 42,
+        validity: validity.to_rfc3339(),
+        ttl: 300_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    // Sign the record
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Marshal to protobuf
+    let protobuf_bytes = marshal_record_protobuf(&record).unwrap();
+    
+    // Unmarshal from protobuf
+    let unmarshaled = unmarshal_record_protobuf(&protobuf_bytes).unwrap();
+    
+    // Verify all fields match
+    assert_eq!(record.value, unmarshaled.value);
+    assert_eq!(record.sequence, unmarshaled.sequence);
+    assert_eq!(record.validity, unmarshaled.validity);
+    assert_eq!(record.ttl, unmarshaled.ttl);
+    assert_eq!(record.public_key, unmarshaled.public_key);
+    assert_eq!(record.signature, unmarshaled.signature);
+    assert_eq!(record.signature_v2, unmarshaled.signature_v2);
+}
+
+#[tokio::test]
+async fn test_protobuf_signature_verification() {
+    use helia_ipns::record::{IpnsRecord, marshal_record_protobuf, unmarshal_record_protobuf, sign_record, verify_signature};
+    use libp2p_identity::Keypair;
+    
+    // Create and sign a record
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    
+    let validity = chrono::Utc::now() + chrono::Duration::hours(24);
+    let mut record = IpnsRecord {
+        value: "/ipfs/QmTest456".to_string(),
+        sequence: 100,
+        validity: validity.to_rfc3339(),
+        ttl: 600_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Marshal, unmarshal, and verify
+    let protobuf_bytes = marshal_record_protobuf(&record).unwrap();
+    let unmarshaled = unmarshal_record_protobuf(&protobuf_bytes).unwrap();
+    
+    // Signature should still be valid after roundtrip
+    let result = verify_signature(&unmarshaled, None);
+    assert!(result.is_ok(), "Signature should be valid after protobuf roundtrip");
+}
+
+#[tokio::test]
+async fn test_protobuf_with_dag_cbor() {
+    use helia_ipns::record::{IpnsRecord, marshal_record_protobuf, unmarshal_record_protobuf, encode_cbor_data, decode_cbor_data, sign_record};
+    use libp2p_identity::Keypair;
+    
+    // Create a record
+    let keypair = Keypair::generate_ed25519();
+    let public_key = keypair.public();
+    let public_key_bytes = public_key.encode_protobuf();
+    
+    let validity = chrono::Utc::now() + chrono::Duration::hours(48);
+    let mut record = IpnsRecord {
+        value: "/ipfs/Qm789Complex".to_string(),
+        sequence: 999,
+        validity: validity.to_rfc3339(),
+        ttl: 900_000_000_000,
+        public_key: public_key_bytes,
+        signature: vec![],
+        signature_v2: None,
+    };
+    
+    let (sig_v1, sig_v2) = sign_record(&keypair, &record).unwrap();
+    record.signature = sig_v1;
+    record.signature_v2 = Some(sig_v2);
+    
+    // Encode CBOR data directly
+    let cbor_bytes = encode_cbor_data(&record).unwrap();
+    let decoded_cbor = decode_cbor_data(&cbor_bytes).unwrap();
+    
+    // Verify CBOR encoding/decoding
+    assert_eq!(record.value.as_bytes(), decoded_cbor.value.as_slice());
+    assert_eq!(record.sequence, decoded_cbor.sequence);
+    assert_eq!(record.ttl, decoded_cbor.ttl);
+    
+    // Now test full protobuf roundtrip
+    let protobuf_bytes = marshal_record_protobuf(&record).unwrap();
+    let unmarshaled = unmarshal_record_protobuf(&protobuf_bytes).unwrap();
+    
+    // Everything should match
+    assert_eq!(record.value, unmarshaled.value);
+    assert_eq!(record.sequence, unmarshaled.sequence);
+}

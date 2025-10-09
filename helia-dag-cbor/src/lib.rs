@@ -5,8 +5,8 @@
 //!
 //! ## Example
 //!
-//! ```rust
-//! use helia::create_helia;
+//! ```no_run
+//! use rust_helia::create_helia_default;
 //! use helia_dag_cbor::{DagCbor, DagCborInterface};
 //! use serde::{Deserialize, Serialize};
 //! use std::collections::HashMap;
@@ -20,7 +20,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let helia = create_helia(None).await?;
+//!     let helia = create_helia_default().await?;
 //!     let dag = DagCbor::new(Arc::new(helia));
 //!     
 //!     let data = MyData {

@@ -93,6 +93,10 @@ pub enum IpnsError {
     #[error("Identity error: {0}")]
     Identity(String),
 
+    /// Failed to sign IPNS record
+    #[error("Signing failed: {0}")]
+    SigningFailed(String),
+
     /// General error
     #[error("{0}")]
     Other(String),

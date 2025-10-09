@@ -4,11 +4,11 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
     use serde::{Deserialize, Serialize};
-    use helia::create_helia;
+    use rust_helia::create_helia_default;
     use helia_interface::Helia;
 
     async fn create_test_helia() -> Arc<dyn Helia> {
-        let helia = create_helia(None).await.expect("Failed to create Helia");
+        let helia = create_helia_default().await.expect("Failed to create Helia");
         Arc::new(helia)
     }
 

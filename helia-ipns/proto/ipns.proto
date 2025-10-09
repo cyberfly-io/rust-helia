@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package ipns;
+
+// IpnsEntry is the protobuf representation of an IPNS record
+// It matches the official IPNS specification at:
+// https://specs.ipfs.tech/ipns/ipns-record/
+message IpnsEntry {
+  enum ValidityType {
+    // EOL means the record expires at the specified time
+    EOL = 0;
+  }
+
+  // Legacy V1 fields (for backward compatibility)
+  bytes value = 1;           // legacy V1 copy of data[Value]
+  bytes signatureV1 = 2;     // legacy V1 signature (deprecated, use signatureV2)
+  ValidityType validityType = 3;  // legacy V1 copy of data[ValidityType]
+  bytes validity = 4;        // legacy V1 copy of data[Validity]
+  uint64 sequence = 5;       // legacy V1 copy of data[Sequence]
+  uint64 ttl = 6;            // legacy V1 copy of data[TTL]
+
+  // Public key (optional, can be inlined in IPNS name for small keys like Ed25519)
+  bytes pubKey = 7;
+
+  // V2 fields (current standard)
+  bytes signatureV2 = 8;     // signature over the DAG-CBOR data
+  bytes data = 9;            // DAG-CBOR encoded record data
+}

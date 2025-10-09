@@ -6,20 +6,24 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
 use tokio::sync::{RwLock, Mutex};
+use tokio::task::JoinHandle;
 use trust_dns_resolver::TokioAsyncResolver;
 use futures::stream;
-use libp2p::Swarm;
+use futures::StreamExt;
+use libp2p::{Swarm, swarm::SwarmEvent};
 
 use helia_interface::*;
 use helia_interface::pins::Pin as HeliaPin;
 
 use crate::{HeliaConfig, SledBlockstore, SledDatastore, TracingLogger, 
-           HeliaBehaviour, create_swarm};
+           HeliaBehaviour, create_swarm, BlockstoreWithBitswap};
+use crate::libp2p_behaviour::HeliaBehaviourEvent;
+use helia_bitswap::{BitswapEvent, Bitswap, BitswapConfig};
 
 /// Main implementation of the Helia trait
 pub struct HeliaImpl {
     libp2p: Arc<Mutex<Swarm<HeliaBehaviour>>>,
-    blockstore: Arc<SledBlockstore>,
+    blockstore: Arc<dyn Blocks>,
     datastore: Arc<SledDatastore>,
     pins: Arc<SimplePins>,
     logger: Arc<TracingLogger>,
@@ -27,11 +31,15 @@ pub struct HeliaImpl {
     dns: TokioAsyncResolver,
     metrics: Option<Arc<dyn Metrics>>,
     started: Arc<RwLock<bool>>,
+    event_loop_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    bitswap: Arc<Bitswap>,
+    outbound_rx: Arc<Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<helia_bitswap::coordinator::OutboundMessage>>>>,
 }
 
 impl HeliaImpl {
     pub async fn new(mut config: HeliaConfig) -> Result<Self, HeliaError> {
-        let blockstore = Arc::new(SledBlockstore::new(config.blockstore)?);
+        // Create base infrastructure
+        let local_blockstore = Arc::new(SledBlockstore::new(config.blockstore)?);
         let datastore = Arc::new(SledDatastore::new(config.datastore)?);
         let pins = Arc::new(SimplePins::new(datastore.clone()));
         let logger = Arc::new(TracingLogger::new(config.logger));
@@ -50,6 +58,35 @@ impl HeliaImpl {
             TokioAsyncResolver::tokio_from_system_conf().expect("Failed to create DNS resolver")
         });
 
+        // Create Bitswap coordinator
+        let bitswap_config = BitswapConfig::default();
+        let mut bitswap = Bitswap::new(local_blockstore.clone() as Arc<dyn Blocks>, bitswap_config)
+                .await
+                .map_err(|e| HeliaError::network(format!("Failed to create Bitswap: {}", e)))?;
+
+        // Create channel for outbound Bitswap messages
+        let (outbound_tx, outbound_rx) = tokio::sync::mpsc::unbounded_channel();
+        bitswap.set_outbound_sender(outbound_tx);
+        logger.info("Bitswap outbound message channel created");
+
+        let bitswap = Arc::new(bitswap);
+
+        // Connect Bitswap coordinator to the NetworkBehaviour
+        // This allows the behaviour to respond to incoming WANT requests
+        {
+            let mut swarm_guard = libp2p.lock().await;
+            swarm_guard.behaviour_mut().bitswap.set_coordinator(bitswap.clone());
+            logger.info("Bitswap coordinator connected to NetworkBehaviour");
+        }
+
+        // Wrap blockstore with Bitswap integration for network retrieval
+        let blockstore: Arc<dyn Blocks> = Arc::new(BlockstoreWithBitswap::new(
+            local_blockstore,
+            bitswap.clone(),
+        ));
+
+        logger.info("Helia node initialized with Bitswap P2P support");
+
         Ok(Self {
             libp2p,
             blockstore,
@@ -60,6 +97,9 @@ impl HeliaImpl {
             dns,
             metrics: config.metrics,
             started: Arc::new(RwLock::new(false)),
+            event_loop_handle: Arc::new(Mutex::new(None)),
+            bitswap,
+            outbound_rx: Arc::new(Mutex::new(Some(outbound_rx))),
         })
     }
 }
@@ -100,10 +140,32 @@ impl Helia for HeliaImpl {
             return Ok(());
         }
 
+        // Start Bitswap coordinator
+        self.bitswap.start().await
+            .map_err(|e| HeliaError::network(format!("Failed to start Bitswap: {}", e)))?;
+        self.logger.info("Bitswap coordinator started");
+
         // Start libp2p swarm
         let mut swarm = self.libp2p.lock().await;
         swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
             .map_err(|e| HeliaError::network(format!("Failed to start listening: {}", e)))?;
+        drop(swarm); // Release lock before spawning event loop
+
+        // Start swarm event loop
+        let swarm_clone = self.libp2p.clone();
+        let blockstore_clone = self.blockstore.clone();
+        let logger_clone = self.logger.clone();
+        let bitswap_clone = self.bitswap.clone();
+        
+        // Take the outbound_rx channel (only available once)
+        let outbound_rx = self.outbound_rx.lock().await.take()
+            .ok_or_else(|| HeliaError::other("Bitswap outbound channel already taken"))?;
+        
+        let handle = tokio::spawn(async move {
+            run_swarm_event_loop(swarm_clone, blockstore_clone, logger_clone, bitswap_clone, outbound_rx).await;
+        });
+        
+        *self.event_loop_handle.lock().await = Some(handle);
 
         self.logger.info("Helia node started");
         *started = true;
@@ -115,6 +177,16 @@ impl Helia for HeliaImpl {
         if !*started {
             return Ok(());
         }
+
+        // Stop event loop
+        if let Some(handle) = self.event_loop_handle.lock().await.take() {
+            handle.abort();
+        }
+
+        // Stop Bitswap coordinator
+        self.bitswap.stop().await
+            .map_err(|e| HeliaError::network(format!("Failed to stop Bitswap: {}", e)))?;
+        self.logger.info("Bitswap coordinator stopped");
 
         self.logger.info("Helia node stopped");
         *started = false;
@@ -318,4 +390,194 @@ impl Pins for SimplePins {
         let key = self.pin_key(cid);
         self.datastore.has(&key).await
     }
+}
+
+/// Run the libp2p swarm event loop
+async fn run_swarm_event_loop(
+    swarm: Arc<Mutex<Swarm<HeliaBehaviour>>>,
+    blockstore: Arc<dyn Blocks>,
+    logger: Arc<TracingLogger>,
+    bitswap: Arc<Bitswap>,
+    mut outbound_rx: tokio::sync::mpsc::UnboundedReceiver<helia_bitswap::coordinator::OutboundMessage>,
+) {
+    loop {
+        tokio::select! {
+            // Handle swarm events
+            event = async {
+                let mut swarm_guard = swarm.lock().await;
+                swarm_guard.select_next_some().await
+            } => {
+                match event {
+                    SwarmEvent::Behaviour(behaviour_event) => {
+                        // Handle different behaviour events
+                        // The NetworkBehaviour derive macro generates HeliaBehaviourEvent
+                        match behaviour_event {
+                            HeliaBehaviourEvent::Bitswap(bitswap_event) => {
+                                handle_bitswap_event(bitswap_event, blockstore.clone(), bitswap.clone(), logger.clone()).await;
+                            }
+                            HeliaBehaviourEvent::Identify(identify_event) => {
+                                logger.debug(&format!("Identify event: {:?}", identify_event));
+                            }
+                            HeliaBehaviourEvent::Kademlia(kad_event) => {
+                                logger.debug(&format!("Kademlia event: {:?}", kad_event));
+                            }
+                    HeliaBehaviourEvent::Gossipsub(gossip_event) => {
+                        logger.debug(&format!("Gossipsub event: {:?}", gossip_event));
+                    }
+                    HeliaBehaviourEvent::Mdns(mdns_event) => {
+                        use libp2p::mdns;
+                        match mdns_event {
+                            mdns::Event::Discovered(list) => {
+                                for (peer_id, multiaddr) in list {
+                                                                       logger.info(&format!("mDNS discovered peer: {} at {}", peer_id, multiaddr));
+                                    // Dial the discovered peer to establish connection
+                                    let mut swarm_guard = swarm.lock().await;
+                                    if let Err(e) = swarm_guard.dial(multiaddr.clone()) {
+                                        logger.warn(&format!("Failed to dial discovered peer {}: {}", peer_id, e));
+                                    } else {
+                                        logger.info(&format!("Dialing discovered peer: {}", peer_id));
+                                    }
+                                }
+                            }
+                            mdns::Event::Expired(list) => {
+                                for (peer_id, _multiaddr) in list {
+                                    logger.info(&format!("mDNS peer expired: {}", peer_id));
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        // Handle other protocol events
+                        logger.debug(&format!("Other behaviour event: {:?}", behaviour_event));
+                    }
+                }
+            }
+            SwarmEvent::NewListenAddr { address, .. } => {
+                logger.info(&format!("Listening on {}", address));
+            }
+            SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
+                logger.info(&format!("Connection established with peer: {} at {}", peer_id, endpoint.get_remote_address()));
+                // Notify Bitswap coordinator of new peer
+                bitswap.add_peer(peer_id).await;
+            }
+            SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+                logger.info(&format!("Connection closed with peer: {} (cause: {:?})", peer_id, cause));
+                // Notify Bitswap coordinator of disconnected peer
+                bitswap.remove_peer(&peer_id).await;
+            }
+            SwarmEvent::IncomingConnection { local_addr, send_back_addr, .. } => {
+                logger.debug(&format!("Incoming connection from {} to {}", send_back_addr, local_addr));
+            }
+            SwarmEvent::IncomingConnectionError { local_addr, send_back_addr, error, .. } => {
+                logger.warn(&format!("Incoming connection error from {} to {}: {}", send_back_addr, local_addr, error));
+            }
+            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+                if let Some(peer_id) = peer_id {
+                    logger.warn(&format!("Outgoing connection error to {}: {}", peer_id, error));
+                } else {
+                    logger.warn(&format!("Outgoing connection error: {}", error));
+                }
+            }
+            _ => {
+                // Handle other events as needed
+            }
+        }
+            }
+            
+            // Handle outbound Bitswap messages from coordinator
+            Some(outbound_msg) = outbound_rx.recv() => {
+                logger.debug(&format!("Sending Bitswap message to peer {} via swarm", outbound_msg.peer));
+                let mut swarm_guard = swarm.lock().await;
+                swarm_guard.behaviour_mut().bitswap.send_message(outbound_msg.peer, outbound_msg.message);
+            }
+        }
+    }
+}
+
+/// Handle Bitswap events (MessageReceived, MessageSent, SendError)
+async fn handle_bitswap_event(
+    event: BitswapEvent,
+    blockstore: Arc<dyn Blocks>,
+    bitswap: Arc<Bitswap>,
+    logger: Arc<TracingLogger>,
+) {
+    match event {
+        BitswapEvent::MessageReceived { peer, message } => {
+            logger.info(&format!("Received Bitswap message from peer: {}", peer));
+            
+            // Store any blocks that were received
+            if !message.blocks.is_empty() {
+                logger.info(&format!("Received {} blocks from peer {}", message.blocks.len(), peer));
+                
+                for block in message.blocks {
+                    logger.debug(&format!(
+                        "Block received - prefix_len: {}, data_len: {}",
+                        block.prefix.len(),
+                        block.data.len()
+                    ));
+                    
+                    // Decode CID from prefix and data
+                    // The prefix contains: [version, codec, ...]
+                    // For now, we'll reconstruct the CID from the block data
+                    // In Bitswap, the full CID can be reconstructed by hashing the data
+                    match reconstruct_cid_from_block(&block.prefix, &block.data) {
+                        Ok(cid) => {
+                            logger.info(&format!("Storing received block: {}", cid));
+                            
+                            // Store in blockstore
+                            if let Err(e) = blockstore.put(&cid, bytes::Bytes::from(block.data), None).await {
+                                logger.warn(&format!("Failed to store received block {}: {}", cid, e));
+                            } else {
+                                logger.info(&format!("✅ Successfully stored block: {}", cid));
+                                
+                                // **OPTIMIZATION**: Immediately notify bitswap coordinator
+                                // This wakes up any waiting want() calls (event-driven, not polling)
+                                bitswap.notify_block_received(&cid);
+                                logger.debug(&format!("Notified coordinator of block arrival: {}", cid));
+                            }
+                        }
+                        Err(e) => {
+                            logger.warn(&format!("Failed to decode CID from block prefix: {}", e));
+                        }
+                    }
+                }
+            }
+            
+            // Log wantlist if present
+            if let Some(wantlist) = &message.wantlist {
+                logger.debug(&format!(
+                    "Received wantlist with {} entries (full: {})",
+                    wantlist.entries.len(),
+                    wantlist.full
+                ));
+                
+                // TODO: Process wantlist and send blocks if we have them
+                // This will be implemented when we connect the coordinator
+            }
+            
+            // Log block presences if present
+            if !message.block_presences.is_empty() {
+                logger.debug(&format!(
+                    "Received {} block presence notifications",
+                    message.block_presences.len()
+                ));
+            }
+        }
+        BitswapEvent::MessageSent { peer } => {
+            logger.debug(&format!("Successfully sent Bitswap message to peer: {}", peer));
+        }
+        BitswapEvent::SendError { peer, error } => {
+            logger.warn(&format!("Failed to send Bitswap message to peer {}: {}", peer, error));
+        }
+    }
+}
+
+/// Reconstruct CID from Bitswap block prefix and data
+/// 
+/// In our implementation, the prefix contains the full CID bytes,
+/// which allows us to get the exact CID without needing to re-hash.
+fn reconstruct_cid_from_block(prefix: &[u8], _data: &[u8]) -> Result<cid::Cid, HeliaError> {
+    // Parse CID directly from prefix bytes
+    cid::Cid::try_from(prefix)
+        .map_err(|e| HeliaError::network(format!("Failed to parse CID from prefix: {}", e)))
 }

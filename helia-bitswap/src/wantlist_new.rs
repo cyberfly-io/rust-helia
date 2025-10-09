@@ -102,6 +102,7 @@ impl WantList {
         let peers = self.peers.clone();
         let wants = self.wants.clone();
         let send_delay = self.send_messages_delay;
+        let send_task_handle = self.send_task_handle.clone();
 
         let handle = tokio::spawn(async move {
             *running.write().await = true;
@@ -139,8 +140,11 @@ impl WantList {
             info!("WantList manager stopped");
         });
 
-        let mut task_handle = self.send_task_handle.blocking_write();
-        *task_handle = Some(handle);
+        // Spawn a task to store the handle since we can't await in a non-async fn
+        let send_task_handle_clone = send_task_handle.clone();
+        tokio::spawn(async move {
+            *send_task_handle_clone.write().await = Some(handle);
+        });
     }
 
     /// Stop the wantlist manager

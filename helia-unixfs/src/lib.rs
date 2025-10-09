@@ -5,15 +5,15 @@
 //!
 //! ## Example
 //!
-//! ```rust
+//! ```no_run
 //! use std::sync::Arc;
-//! use helia::create_helia;
+//! use rust_helia::create_helia_default;
 //! use helia_unixfs::{UnixFS, UnixFSInterface};
 //! use bytes::Bytes;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let helia = create_helia(None).await?;
+//!     let helia = create_helia_default().await?;
 //!     let fs = UnixFS::new(Arc::new(helia));
 //!     
 //!     // Add a file
@@ -31,6 +31,9 @@
 //! }
 //! ```
 
+mod pb;
+pub mod chunker;
+pub mod dag_pb;
 pub mod errors;
 pub mod unixfs;
 
@@ -48,6 +51,9 @@ use serde::{Deserialize, Serialize};
 use helia_interface::{Helia, AwaitIterable};
 
 pub use errors::*;
+pub use pb::*;
+pub use chunker::*;
+pub use dag_pb::*;
 pub use unixfs::*;
 
 /// File statistics

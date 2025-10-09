@@ -5,14 +5,14 @@
 //!
 //! # Example
 //!
-//! ```rust
-//! use helia::create_helia;
+//! ```no_run
+//! use rust_helia::create_helia_default;
 //! use helia_strings::{strings, StringsInterface};
 //! use tokio;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let helia = std::sync::Arc::new(create_helia(None).await?);
+//!     let helia = std::sync::Arc::new(create_helia_default().await?);
 //!     let str_interface = strings(helia);
 //!     
 //!     let cid = str_interface.add("hello world", None).await?;
@@ -128,12 +128,12 @@ impl StringsInterface for DefaultStrings {
 ///
 /// # Example
 ///
-/// ```rust
-/// use helia::create_helia;
+/// ```no_run
+/// use rust_helia::create_helia_default;
 /// use helia_strings::{strings, StringsInterface};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let helia = std::sync::Arc::new(create_helia(None).await?);
+/// let helia = std::sync::Arc::new(create_helia_default().await?);
 /// let str_interface = strings(helia);
 /// let cid = str_interface.add("hello world", None).await?;
 /// # Ok(())
@@ -146,11 +146,11 @@ pub fn strings(helia: Arc<dyn Helia>) -> impl StringsInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use helia::create_helia;
+    use rust_helia::create_helia_default;
     use std::sync::Arc;
 
     async fn create_test_helia() -> Arc<dyn Helia> {
-        Arc::new(create_helia(None).await.expect("Failed to create Helia instance"))
+        Arc::new(create_helia_default().await.expect("Failed to create Helia instance"))
     }
 
     #[tokio::test]

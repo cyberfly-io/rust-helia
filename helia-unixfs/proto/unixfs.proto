@@ -1,0 +1,39 @@
+// UnixFS protobuf schema
+// Based on: https://github.com/ipfs/specs/blob/main/UNIXFS.md
+
+syntax = "proto3";
+
+package unixfs.pb;
+
+// UnixFS data structure
+message Data {
+    // Type of the UnixFS node
+    enum DataType {
+        Raw = 0;
+        Directory = 1;
+        File = 2;
+        Metadata = 3;
+        Symlink = 4;
+        HAMTShard = 5;
+    }
+
+    DataType Type = 1;
+    optional bytes Data = 2;          // File data (for small files or chunks)
+    uint64 filesize = 3;              // Total file size (for chunked files)
+    repeated uint64 blocksizes = 4;   // Sizes of child blocks (for chunked files)
+    uint64 hashType = 5;              // Hash type for HAMT sharding
+    uint64 fanout = 6;                // Fanout for HAMT sharding
+    uint32 mode = 7;                  // Unix file mode
+    optional UnixTime mtime = 8;      // Modification time
+}
+
+// Unix timestamp
+message UnixTime {
+    int64 Seconds = 1;
+    fixed32 FractionalNanoseconds = 2;
+}
+
+// Metadata for files/directories
+message Metadata {
+    string MimeType = 1;
+}

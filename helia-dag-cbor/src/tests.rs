@@ -7,7 +7,7 @@ mod tests {
     
     use serde::{Deserialize, Serialize};
     
-    use helia::create_helia_default;
+    use rust_helia::create_helia_default;
     use crate::{DagCbor, DagCborInterface, AddOptions};
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]

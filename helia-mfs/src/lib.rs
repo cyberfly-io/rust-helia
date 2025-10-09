@@ -130,10 +130,10 @@ pub fn mfs(helia: Arc<dyn Helia>) -> impl MfsInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use helia::create_helia;
+    use rust_helia::create_helia_default;
 
     async fn create_test_helia() -> Arc<dyn Helia> {
-        Arc::new(create_helia(None).await.expect("Failed to create Helia"))
+        Arc::new(create_helia_default().await.expect("Failed to create Helia"))
     }
 
     #[tokio::test]

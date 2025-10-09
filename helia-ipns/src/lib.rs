@@ -4,16 +4,17 @@
 
 mod errors;
 mod local_store;
-mod routing;
+pub mod routing;
 mod ipns_impl;
-mod record;
+pub mod record;
 mod constants;
-mod keys;
+pub mod keys;
+mod protobuf;
 
 pub use errors::IpnsError;
 pub use local_store::{LocalStore, RecordMetadata};
-pub use routing::{IpnsRouting, RoutingEvent};
-pub use record::{IpnsRecord, validate_ipns_record, select_best_record};
+pub use routing::{IpnsRouting, RoutingEvent, DhtRouter, LocalRouter, HttpRouter, PutOptions, GetOptions};
+pub use record::{IpnsRecord, validate_ipns_record, select_best_record, sign_record, verify_signature};
 
 use std::sync::Arc;
 use std::time::Duration;

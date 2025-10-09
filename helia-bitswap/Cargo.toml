@@ -25,3 +25,9 @@ rand = "0.8"
 prost = "0.13"
 unsigned-varint = "0.8"
 async-stream = "0.3"
+
+[dev-dependencies]
+helia-utils = { version = "0.1.2", path = "../helia-utils" }
+tracing-subscriber = "0.3"
+sha2 = "0.10"
+multihash = "0.19"

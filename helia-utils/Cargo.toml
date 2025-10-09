@@ -12,6 +12,7 @@ description = "Shared utilities and implementations for Helia"
 [dependencies]
 # Interface dependencies
 helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-bitswap = { version = "0.1.2", path = "../helia-bitswap" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -26,6 +27,9 @@ thiserror.workspace = true
 cid.workspace = true
 multihash.workspace = true
 multiaddr.workspace = true
+
+# Crypto
+sha2.workspace = true
 
 # libp2p
 libp2p.workspace = true

@@ -5,8 +5,8 @@ mod tests {
     use std::sync::Arc;
     use bytes::Bytes;
     
-    use helia::{create_helia_default};
-    use crate::{UnixFS, UnixFSInterface, FileCandidate, DirectoryCandidate, UnixFSType, UnixFSStat, AddOptions, CatOptions, LsOptions};
+    use rust_helia::create_helia_default;
+    use crate::{UnixFS, UnixFSInterface, FileCandidate, DirectoryCandidate, UnixFSType, UnixFSStat, AddOptions, CatOptions};
     use futures::StreamExt;
 
     async fn create_test_unixfs() -> UnixFS {

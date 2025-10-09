@@ -16,6 +16,12 @@ pub const BITSWAP_PROTOCOLS: &[&str] = &[BITSWAP_120, BITSWAP_110, BITSWAP_100];
 /// Default delay before sending queued messages (milliseconds)
 pub const DEFAULT_MESSAGE_SEND_DELAY: u64 = 20;
 
+/// Default want timeout (milliseconds)
+pub const DEFAULT_WANT_TIMEOUT: u64 = 30_000;
+
+/// Default priority for want requests
+pub const DEFAULT_PRIORITY: i32 = 1;
+
 /// Default maximum number of inbound streams
 pub const DEFAULT_MAX_INBOUND_STREAMS: usize = 32;
 
