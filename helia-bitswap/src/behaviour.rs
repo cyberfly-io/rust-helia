@@ -22,6 +22,7 @@ use libp2p::{
 use libp2p_stream::{Behaviour as StreamBehaviour, Control, IncomingStreams, OpenStreamError};
 use std::{
     collections::HashMap,
+    fmt::Write as _,
     sync::Arc,
     task::{Context, Poll},
 };
@@ -386,7 +387,12 @@ async fn register_connection(
                         }
                     }
                     Err(err) => {
-                        warn!(peer = %peer, error = %err, "Failed to decode inbound Bitswap payload");
+                        let mut hex_dump = String::with_capacity(bytes.len() * 2);
+                        for byte in &bytes {
+                            let _ = write!(hex_dump, "{:02x}", byte);
+                        }
+                        warn!(peer = %peer, error = %err, payload_len = bytes.len(), payload_hex = %hex_dump,
+                            "Failed to decode inbound Bitswap payload");
                     }
                 },
                 Err(err) => {

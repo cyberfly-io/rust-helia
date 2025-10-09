@@ -35,5 +35,5 @@ pub fn encode_frame(message: &BitswapMessage) -> Result<Vec<u8>, FrameError> {
 ///
 /// The caller is responsible for ensuring `payload` contains an entire protobuf message.
 pub fn decode_payload(payload: &[u8]) -> Result<BitswapMessage, FrameError> {
-    Ok(BitswapMessage::decode(payload)?)
+    Ok(BitswapMessage::decode_from_bytes(payload)?)
 }

@@ -26,7 +26,9 @@ thiserror.workspace = true
 # IPFS and multiformats
 cid.workspace = true
 multihash.workspace = true
+multihash-codetable.workspace = true
 multiaddr.workspace = true
+unsigned-varint.workspace = true
 
 # Crypto
 sha2.workspace = true

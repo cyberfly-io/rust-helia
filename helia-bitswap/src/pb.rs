@@ -127,7 +127,19 @@ impl BitswapMessage {
 
     /// Decode a message from bytes
     pub fn decode_from_bytes(bytes: &[u8]) -> Result<Self, prost::DecodeError> {
-        Self::decode(&mut Cursor::new(bytes))
+        let mut cursor = Cursor::new(bytes);
+        match Self::decode(&mut cursor) {
+            Ok(message) => Ok(message),
+            Err(primary_err) => {
+                let mut legacy_cursor = Cursor::new(bytes);
+                match LegacyBitswapMessage::decode(&mut legacy_cursor) {
+                    Ok(legacy) => Ok(legacy.into()),
+                    Err(legacy_err) => Err(prost::DecodeError::new(format!(
+                        "bitswap decode failed (primary: {primary_err}; legacy: {legacy_err})"
+                    ))),
+                }
+            }
+        }
     }
 
     /// Check if message is empty
@@ -143,6 +155,38 @@ impl BitswapMessage {
     /// Get estimated size of the message
     pub fn estimated_size(&self) -> usize {
         self.encoded_len()
+    }
+}
+
+/// Legacy Bitswap message layout used by some peers where structured blocks are encoded in field 3.
+#[derive(Clone, PartialEq, ProstMessage)]
+struct LegacyBitswapMessage {
+    /// Wantlist (optional)
+    #[prost(message, optional, tag = "1")]
+    wantlist: Option<Wantlist>,
+    /// Raw block data (legacy field for compatibility)
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    raw_blocks: Vec<Vec<u8>>,
+    /// Structured block payload (Bitswap ≤1.2 layout)
+    #[prost(message, repeated, tag = "3")]
+    blocks: Vec<Block>,
+    /// Number of bytes pending to be sent
+    #[prost(int32, tag = "4", default = "0")]
+    pending_bytes: i32,
+    /// Block presence information (HAVE / DONT_HAVE)
+    #[prost(message, repeated, tag = "5")]
+    block_presences: Vec<BlockPresence>,
+}
+
+impl From<LegacyBitswapMessage> for BitswapMessage {
+    fn from(legacy: LegacyBitswapMessage) -> Self {
+        Self {
+            wantlist: legacy.wantlist,
+            raw_blocks: legacy.raw_blocks,
+            block_presences: legacy.block_presences,
+            pending_bytes: legacy.pending_bytes,
+            blocks: legacy.blocks,
+        }
     }
 }
 

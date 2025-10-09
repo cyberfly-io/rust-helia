@@ -5,6 +5,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use cid::Cid;
+use multihash_codetable::{Code as MultihashCode, MultihashDigest};
+use std::convert::TryFrom;
 use futures::stream;
 use futures::StreamExt;
 use helia_bitswap::BlockPresenceType;
@@ -19,6 +21,7 @@ use libp2p::{
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use trust_dns_resolver::TokioAsyncResolver;
+use unsigned_varint::decode as varint_decode;
 
 use helia_interface::pins::Pin as HeliaPin;
 use helia_interface::*;
@@ -752,8 +755,90 @@ async fn handle_bitswap_event(
 ///
 /// In our implementation, the prefix contains the full CID bytes,
 /// which allows us to get the exact CID without needing to re-hash.
-fn reconstruct_cid_from_block(prefix: &[u8], _data: &[u8]) -> Result<cid::Cid, HeliaError> {
-    // Parse CID directly from prefix bytes
-    cid::Cid::try_from(prefix)
-        .map_err(|e| HeliaError::network(format!("Failed to parse CID from prefix: {}", e)))
+fn reconstruct_cid_from_block(prefix: &[u8], data: &[u8]) -> Result<cid::Cid, HeliaError> {
+    let (version_val, remaining) = varint_decode::u64(prefix)
+        .map_err(|e| HeliaError::network(format!("Failed to decode CID version from prefix: {}", e)))?;
+
+    let (codec_val, remaining) = varint_decode::u64(remaining)
+        .map_err(|e| HeliaError::network(format!("Failed to decode codec from prefix: {}", e)))?;
+
+    let (mh_code_val, remaining) = varint_decode::u64(remaining)
+        .map_err(|e| HeliaError::network(format!("Failed to decode multihash code from prefix: {}", e)))?;
+
+    let (mh_len_val, _remaining) = varint_decode::u64(remaining)
+        .map_err(|e| HeliaError::network(format!("Failed to decode multihash length from prefix: {}", e)))?;
+
+    let code = MultihashCode::try_from(mh_code_val).map_err(|_| {
+        HeliaError::network(format!("Unsupported multihash code in prefix: {}", mh_code_val))
+    })?;
+
+    let multihash = code.digest(data);
+    let expected_len = usize::try_from(mh_len_val).map_err(|_| {
+        HeliaError::network(format!("Multihash length {} does not fit in usize", mh_len_val))
+    })?;
+
+    if multihash.digest().len() != expected_len {
+        return Err(HeliaError::network(format!(
+            "Multihash length mismatch: expected {}, got {}",
+            expected_len,
+            multihash.digest().len()
+        )));
+    }
+
+    match version_val {
+        0 => cid::Cid::new_v0(multihash)
+            .map_err(|e| HeliaError::network(format!("Failed to construct CIDv0: {}", e))),
+        1 => Ok(cid::Cid::new_v1(codec_val, multihash)),
+        v => Err(HeliaError::network(format!(
+            "Unsupported CID version in prefix: {}",
+            v
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use multihash_codetable::{Code as MultihashCode, MultihashDigest};
+    use unsigned_varint::encode;
+
+    fn push_varint(target: &mut Vec<u8>, value: u64) {
+        let mut buf = encode::u64_buffer();
+        target.extend_from_slice(encode::u64(value, &mut buf));
+    }
+
+    #[test]
+    fn reconstructs_cid_v1_with_sha2_256() {
+        let data = b"hello world";
+    let digest = MultihashCode::Sha2_256.digest(data);
+        let codec_val = 0x55; // raw codec
+
+        let mut prefix = Vec::new();
+        push_varint(&mut prefix, 1); // CIDv1
+        push_varint(&mut prefix, codec_val);
+        push_varint(&mut prefix, u64::from(MultihashCode::Sha2_256));
+        push_varint(&mut prefix, digest.digest().len() as u64);
+
+        let reconstructed = reconstruct_cid_from_block(&prefix, data).expect("cid reconstruction");
+        let expected = Cid::new_v1(codec_val, digest.clone());
+
+        assert_eq!(reconstructed, expected);
+    }
+
+    #[test]
+    fn fails_on_mismatched_digest_length() {
+        let data = b"hello world";
+    let digest = MultihashCode::Sha2_256.digest(data);
+        let codec_val = 0x55; // raw codec
+
+        let mut prefix = Vec::new();
+        push_varint(&mut prefix, 1); // CIDv1
+        push_varint(&mut prefix, codec_val);
+        push_varint(&mut prefix, u64::from(MultihashCode::Sha2_256));
+        push_varint(&mut prefix, (digest.digest().len() as u64) - 1); // incorrect length
+
+        let err = reconstruct_cid_from_block(&prefix, data).expect_err("length mismatch should fail");
+
+        assert!(matches!(err, HeliaError::Network { .. }));
+    }
 }
