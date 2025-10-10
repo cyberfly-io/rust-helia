@@ -97,6 +97,10 @@ pub enum IpnsError {
     #[error("Signing failed: {0}")]
     SigningFailed(String),
 
+    /// Operation timed out
+    #[error("Operation timed out")]
+    Timeout,
+
     /// General error
     #[error("{0}")]
     Other(String),

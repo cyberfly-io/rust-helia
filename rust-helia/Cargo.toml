@@ -58,11 +58,15 @@ helia-unixfs = { version = "0.1.2", path = "../helia-unixfs" }
 helia-dag-cbor = { version = "0.1.2", path = "../helia-dag-cbor" }
 helia-dag-json = { version = "0.1.2", path = "../helia-dag-json" }
 helia-json = { version = "0.1.2", path = "../helia-json" }
+helia-mfs = { version = "0.1.2", path = "../helia-mfs" }
 helia-car = { version = "0.1.2", path = "../helia-car" }
 helia-routers = { version = "0.1.2", path = "../helia-routers" }
+helia-ipns = { version = "0.1.2", path = "../helia-ipns" }
+helia-bitswap = { version = "0.1.2", path = "../helia-bitswap" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+env_logger = "0.11"
 
 # Provider discovery examples
 [[example]]
@@ -80,3 +84,19 @@ path = "examples/provider_workflow.rs"
 [[example]]
 name = "real_world_providers"
 path = "examples/real_world_providers.rs"
+
+# P2P content sharing
+[[example]]
+name = "09_p2p_content_sharing"
+path = "examples/09_p2p_content_sharing.rs"
+
+# IPNS publish and resolve
+[[example]]
+name = "10_ipns_publish_resolve"
+path = "examples/10_ipns_publish_resolve.rs"
+
+# MFS filesystem operations
+[[example]]
+name = "11_mfs_filesystem"
+path = "examples/11_mfs_filesystem.rs"
+required-features = []
