@@ -86,7 +86,7 @@ impl MfsPath {
     }
 
     /// Convert back to string representation
-    pub fn to_string(&self) -> String {
+    pub fn as_str(&self) -> String {
         if self.segments.is_empty() {
             return "/".to_string();
         }
@@ -133,6 +133,13 @@ impl MfsPath {
             segments: new_segments,
             is_absolute: self.is_absolute,
         })
+    }
+}
+
+/// Implement Display for convenient string conversion
+impl std::fmt::Display for MfsPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 

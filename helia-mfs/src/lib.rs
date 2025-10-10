@@ -34,7 +34,7 @@
 //! # Example Usage
 //!
 //! ```no_run
-//! use helia_mfs::mfs;
+//! use helia_mfs::{mfs, MfsInterface};
 //! use rust_helia::create_helia_default;
 //! use std::sync::Arc;
 //!
@@ -824,14 +824,11 @@ impl MfsInterface for DefaultMfs {
                 .await
                 .map_err(|e| MfsError::UnixFs(e.to_string()))?;
 
-            let mut count = 0;
+            // Check if directory has any entries
             let mut dir_stream = dir_entries;
-            while let Some(_) = dir_stream.next().await {
-                count += 1;
-                break; // Just need to know if there's at least one entry
-            }
+            let has_entries = dir_stream.next().await.is_some();
 
-            if count > 0 {
+            if has_entries {
                 return Err(MfsError::InvalidPath(
                     format!("Directory '{}' is not empty. Use recursive flag to remove.", path)
                 ));
