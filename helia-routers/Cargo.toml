@@ -11,11 +11,13 @@ description = "Routing abstractions for Helia (content and peer routing)"
 
 [dependencies]
 helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-utils = { version = "0.1.2", path = "../helia-utils" }
 
 # Core async runtime
 async-trait.workspace = true
 tokio.workspace = true
 futures = "0.3"
+async-stream = "0.3"
 
 # Error handling
 thiserror.workspace = true

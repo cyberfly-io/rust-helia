@@ -59,7 +59,24 @@ helia-dag-cbor = { version = "0.1.2", path = "../helia-dag-cbor" }
 helia-dag-json = { version = "0.1.2", path = "../helia-dag-json" }
 helia-json = { version = "0.1.2", path = "../helia-json" }
 helia-car = { version = "0.1.2", path = "../helia-car" }
+helia-routers = { version = "0.1.2", path = "../helia-routers" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-chrono = { version = "0.4", features = ["serde"] }
+
+# Provider discovery examples
+[[example]]
+name = "basic_find_providers"
+path = "examples/basic_find_providers.rs"
+
+[[example]]
+name = "find_providers"
+path = "examples/find_providers.rs"
+
+[[example]]
+name = "provider_workflow"
+path = "examples/provider_workflow.rs"
+
+[[example]]
+name = "real_world_providers"
+path = "examples/real_world_providers.rs"
