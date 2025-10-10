@@ -130,7 +130,7 @@ mod tests {
         let updated_dir_cid = fs.cp(&file_cid, &dir_cid, "hello.txt", None).await.unwrap();
 
         // Verify the file is in the directory
-        let mut entries_stream = fs.ls(&updated_dir_cid, None).await.unwrap();
+        let entries_stream = fs.ls(&updated_dir_cid, None).await.unwrap();
         let entries: Vec<_> = entries_stream.collect().await;
 
         assert_eq!(entries.len(), 1);
@@ -152,7 +152,7 @@ mod tests {
         let updated_parent_cid = fs.mkdir(&parent_cid, "subdir", None).await.unwrap();
 
         // List contents
-        let mut entries_stream = fs.ls(&updated_parent_cid, None).await.unwrap();
+        let entries_stream = fs.ls(&updated_parent_cid, None).await.unwrap();
         let entries: Vec<_> = entries_stream.collect().await;
 
         assert_eq!(entries.len(), 1);
@@ -173,7 +173,7 @@ mod tests {
         let dir_with_file_cid = fs.cp(&file_cid, &dir_cid, "test.txt", None).await.unwrap();
 
         // Verify file is there
-        let mut entries_stream = fs.ls(&dir_with_file_cid, None).await.unwrap();
+        let entries_stream = fs.ls(&dir_with_file_cid, None).await.unwrap();
         let entries: Vec<_> = entries_stream.collect().await;
         assert_eq!(entries.len(), 1);
 
@@ -181,7 +181,7 @@ mod tests {
         let empty_dir_cid = fs.rm(&dir_with_file_cid, "test.txt", None).await.unwrap();
 
         // Verify file is gone
-        let mut entries_stream = fs.ls(&empty_dir_cid, None).await.unwrap();
+        let entries_stream = fs.ls(&empty_dir_cid, None).await.unwrap();
         let entries: Vec<_> = entries_stream.collect().await;
         assert_eq!(entries.len(), 0);
     }
@@ -231,7 +231,7 @@ mod tests {
             .unwrap();
 
         // First get the subdirectory CID
-        let mut entries_stream = fs.ls(&root_with_subdir, None).await.unwrap();
+        let entries_stream = fs.ls(&root_with_subdir, None).await.unwrap();
         let entries: Vec<_> = entries_stream.collect().await;
         let subdir_entry = entries.iter().find(|e| e.name == "subdir").unwrap();
         let subdir_cid = subdir_entry.cid;
@@ -243,11 +243,11 @@ mod tests {
             .unwrap();
 
         // Verify directory structure
-        let mut root_entries_stream = fs.ls(&root_with_subdir, None).await.unwrap();
+        let root_entries_stream = fs.ls(&root_with_subdir, None).await.unwrap();
         let root_entries: Vec<_> = root_entries_stream.collect().await;
         assert_eq!(root_entries.len(), 2); // file1.txt and subdir
 
-        let mut subdir_entries_stream = fs.ls(&subdir_with_file, None).await.unwrap();
+        let subdir_entries_stream = fs.ls(&subdir_with_file, None).await.unwrap();
         let subdir_entries: Vec<_> = subdir_entries_stream.collect().await;
         assert_eq!(subdir_entries.len(), 1); // file2.txt
 
@@ -394,4 +394,227 @@ mod tests {
             _ => panic!("Expected file stat"),
         }
     }
+
+    // ====================================================================
+    // Edge Case Tests
+    // ====================================================================
+
+    #[tokio::test]
+    async fn test_empty_file() {
+        let fs = create_test_unixfs().await;
+
+        // Add empty file
+        let data = Bytes::new();
+        let cid = fs.add_bytes(data.clone(), None).await.unwrap();
+
+        // Should be able to retrieve it
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved, data);
+        assert_eq!(retrieved.len(), 0);
+
+        // Check stats
+        let stat = fs.stat(&cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::File(file_stat) => {
+                assert_eq!(file_stat.size, 0);
+            }
+            _ => panic!("Expected file stat"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_single_byte_file() {
+        let fs = create_test_unixfs().await;
+
+        // Add single byte
+        let data = Bytes::from(vec![42u8]);
+        let cid = fs.add_bytes(data.clone(), None).await.unwrap();
+
+        let retrieved = fs.cat(&cid, None).await.unwrap();
+        assert_eq!(retrieved, data);
+        assert_eq!(retrieved[0], 42);
+    }
+
+    #[tokio::test]
+    async fn test_empty_directory() {
+        let fs = create_test_unixfs().await;
+
+        // Create empty directory
+        let dir_cid = fs.add_directory(None, None).await.unwrap();
+
+        // List should return empty
+        let mut entries = fs.ls(&dir_cid, None).await.unwrap();
+        let first_entry = entries.next().await;
+        assert!(first_entry.is_none(), "Empty directory should have no entries");
+
+        // Check stats
+        let stat = fs.stat(&dir_cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::Directory(dir_stat) => {
+                assert_eq!(dir_stat.entries, 0);
+            }
+            _ => panic!("Expected directory stat"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_special_characters_in_filenames() {
+        let fs = create_test_unixfs().await;
+
+        let dir_cid = fs.add_directory(None, None).await.unwrap();
+        let file_data = Bytes::from("test content");
+        let file_cid = fs.add_bytes(file_data, None).await.unwrap();
+
+        // Test various special characters
+        let special_names = vec![
+            "file-with-dashes.txt",
+            "file_with_underscores.txt",
+            "file.with.dots.txt",
+            "file with spaces.txt",
+            "file123numbers.txt",
+            "UPPERCASE.TXT",
+        ];
+
+        for name in special_names {
+            let result = fs.cp(&file_cid, &dir_cid, name, None).await;
+            assert!(
+                result.is_ok(),
+                "Should handle filename: {}",
+                name
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_deep_directory_nesting() {
+        let fs = create_test_unixfs().await;
+
+        // Create deeply nested structure
+        let mut current_cid = fs.add_directory(None, None).await.unwrap();
+
+        for i in 0..10 {
+            let dirname = format!("level{}", i);
+            current_cid = fs
+                .mkdir(&current_cid, &dirname, None)
+                .await
+                .unwrap();
+        }
+
+        // Should be able to add file at deepest level
+        let file_data = Bytes::from("deep file");
+        let file_cid = fs.add_bytes(file_data, None).await.unwrap();
+        let result = fs.cp(&file_cid, &current_cid, "deep.txt", None).await;
+        assert!(result.is_ok(), "Should handle deep nesting");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_operations() {
+        let fs = Arc::new(create_test_unixfs().await);
+
+        // Spawn multiple concurrent operations
+        let mut handles = vec![];
+
+        for i in 0..5 {
+            let fs_clone = Arc::clone(&fs);
+            let handle = tokio::spawn(async move {
+                let data = Bytes::from(format!("concurrent file {}", i));
+                fs_clone.add_bytes(data, None).await
+            });
+            handles.push(handle);
+        }
+
+        // All should succeed
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_ok(), "Concurrent operation should succeed");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cat_offset_beyond_file_size() {
+        let fs = create_test_unixfs().await;
+
+        let data = Bytes::from("short");
+        let cid = fs.add_bytes(data, None).await.unwrap();
+
+        // Offset beyond file size
+        let options = CatOptions {
+            offset: Some(100),
+            length: None,
+        };
+        let result = fs.cat(&cid, Some(options)).await.unwrap();
+        assert_eq!(result.len(), 0, "Should return empty for offset beyond size");
+    }
+
+    #[tokio::test]
+    async fn test_cat_length_beyond_available() {
+        let fs = create_test_unixfs().await;
+
+        let data = Bytes::from("hello");
+        let cid = fs.add_bytes(data.clone(), None).await.unwrap();
+
+        // Length beyond available bytes
+        let options = CatOptions {
+            offset: Some(3),
+            length: Some(100), // Only 2 bytes available from offset 3
+        };
+        let result = fs.cat(&cid, Some(options)).await.unwrap();
+        assert_eq!(result, Bytes::from("lo"));
+    }
+
+    #[tokio::test]
+    async fn test_directory_with_many_entries() {
+        let fs = create_test_unixfs().await;
+
+        let mut dir_cid = fs.add_directory(None, None).await.unwrap();
+
+        // Add 50 files
+        for i in 0..50 {
+            let data = Bytes::from(format!("file {}", i));
+            let file_cid = fs.add_bytes(data, None).await.unwrap();
+            let filename = format!("file{:03}.txt", i);
+            dir_cid = fs.cp(&file_cid, &dir_cid, &filename, None).await.unwrap();
+        }
+
+        // Count entries
+        let mut entries = fs.ls(&dir_cid, None).await.unwrap();
+        let mut count = 0;
+        while let Some(_entry) = entries.next().await {
+            count += 1;
+        }
+        assert_eq!(count, 50, "Should have 50 entries");
+
+        // Check stats
+        let stat = fs.stat(&dir_cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::Directory(dir_stat) => {
+                assert_eq!(dir_stat.entries, 50);
+            }
+            _ => panic!("Expected directory stat"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stat_for_raw_block() {
+        let fs = create_test_unixfs().await;
+
+        // Add with raw leaves
+        let data = Bytes::from("raw data");
+        let options = AddOptions {
+            raw_leaves: true,
+            ..Default::default()
+        };
+        let cid = fs.add_bytes(data.clone(), Some(options)).await.unwrap();
+
+        // Should still be able to get stats
+        let stat = fs.stat(&cid, None).await.unwrap();
+        match stat {
+            UnixFSStat::File(file_stat) => {
+                assert!(file_stat.size > 0);
+                assert_eq!(file_stat.type_, UnixFSType::Raw);
+            }
+            _ => panic!("Expected file stat"),
+        }
+    }
 }
+
