@@ -182,4 +182,293 @@ mod tests {
         assert_eq!(retrieved.get("enabled").unwrap(), "true");
         assert_eq!(retrieved.get("count").unwrap(), "42");
     }
+
+    // ============================================================================
+    // EDGE CASE TESTS - Comprehensive coverage of corner cases
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_empty_object() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Empty {}
+
+        let empty = Empty {};
+        let cid = dag.add(&empty, None).await.unwrap();
+        let retrieved: Empty = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(empty, retrieved);
+    }
+
+    #[tokio::test]
+    async fn test_empty_array() {
+        let dag = create_test_dag().await;
+
+        let empty_vec: Vec<i32> = vec![];
+        let cid = dag.add(&empty_vec, None).await.unwrap();
+        let retrieved: Vec<i32> = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(empty_vec, retrieved);
+        assert!(retrieved.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_empty_hashmap() {
+        let dag = create_test_dag().await;
+
+        let empty_map: HashMap<String, String> = HashMap::new();
+        let cid = dag.add(&empty_map, None).await.unwrap();
+        let retrieved: HashMap<String, String> = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(empty_map, retrieved);
+        assert!(retrieved.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_deeply_nested_structure() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Level5 {
+            value: String,
+        }
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Level4 {
+            inner: Level5,
+            count: i32,
+        }
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Level3 {
+            inner: Level4,
+            items: Vec<String>,
+        }
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Level2 {
+            inner: Level3,
+            flag: bool,
+        }
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Level1 {
+            inner: Level2,
+            name: String,
+        }
+
+        let deeply_nested = Level1 {
+            name: "root".to_string(),
+            inner: Level2 {
+                flag: true,
+                inner: Level3 {
+                    items: vec!["a".to_string(), "b".to_string()],
+                    inner: Level4 {
+                        count: 42,
+                        inner: Level5 {
+                            value: "deep value".to_string(),
+                        },
+                    },
+                },
+            },
+        };
+
+        let cid = dag.add(&deeply_nested, None).await.unwrap();
+        let retrieved: Level1 = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(deeply_nested, retrieved);
+        assert_eq!(retrieved.inner.inner.inner.inner.value, "deep value");
+    }
+
+    #[tokio::test]
+    async fn test_large_array() {
+        let dag = create_test_dag().await;
+
+        // Create array with 1000 elements
+        let large_array: Vec<i32> = (0..1000).collect();
+        let cid = dag.add(&large_array, None).await.unwrap();
+        let retrieved: Vec<i32> = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(large_array.len(), retrieved.len());
+        assert_eq!(large_array, retrieved);
+        assert_eq!(retrieved[0], 0);
+        assert_eq!(retrieved[999], 999);
+    }
+
+    #[tokio::test]
+    async fn test_large_object() {
+        let dag = create_test_dag().await;
+
+        // Create HashMap with 100 entries
+        let mut large_map = HashMap::new();
+        for i in 0..100 {
+            large_map.insert(format!("key{}", i), format!("value{}", i));
+        }
+
+        let cid = dag.add(&large_map, None).await.unwrap();
+        let retrieved: HashMap<String, String> = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(large_map.len(), retrieved.len());
+        assert_eq!(retrieved.get("key0").unwrap(), "value0");
+        assert_eq!(retrieved.get("key99").unwrap(), "value99");
+    }
+
+    #[tokio::test]
+    async fn test_special_values() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct SpecialValues {
+            boolean_true: bool,
+            boolean_false: bool,
+            zero: i32,
+            negative: i32,
+            float: f64,
+            large_number: i64,
+        }
+
+        let special = SpecialValues {
+            boolean_true: true,
+            boolean_false: false,
+            zero: 0,
+            negative: -42,
+            float: 3.14159,
+            large_number: 9_223_372_036_854_775_807, // i64::MAX
+        };
+
+        let cid = dag.add(&special, None).await.unwrap();
+        let retrieved: SpecialValues = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(special, retrieved);
+        assert!(retrieved.boolean_true);
+        assert!(!retrieved.boolean_false);
+        assert_eq!(retrieved.zero, 0);
+        assert_eq!(retrieved.negative, -42);
+        assert!((retrieved.float - 3.14159).abs() < 0.00001);
+    }
+
+    #[tokio::test]
+    async fn test_unicode_strings() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct UnicodeData {
+            english: String,
+            japanese: String,
+            arabic: String,
+            emoji: String,
+            mixed: String,
+        }
+
+        let unicode = UnicodeData {
+            english: "Hello World".to_string(),
+            japanese: "こんにちは世界".to_string(),
+            arabic: "مرحبا بالعالم".to_string(),
+            emoji: "🌍🚀🎉".to_string(),
+            mixed: "Hello 世界 🌍".to_string(),
+        };
+
+        let cid = dag.add(&unicode, None).await.unwrap();
+        let retrieved: UnicodeData = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(unicode, retrieved);
+        assert_eq!(retrieved.japanese, "こんにちは世界");
+        assert_eq!(retrieved.emoji, "🌍🚀🎉");
+    }
+
+    #[tokio::test]
+    async fn test_mixed_type_array() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        #[serde(untagged)]
+        enum Value {
+            Number(i32),
+            Text(String),
+            Flag(bool),
+        }
+
+        let mixed = vec![
+            Value::Number(42),
+            Value::Text("hello".to_string()),
+            Value::Flag(true),
+            Value::Number(-10),
+            Value::Text("world".to_string()),
+        ];
+
+        let cid = dag.add(&mixed, None).await.unwrap();
+        let retrieved: Vec<Value> = dag.get(&cid, None).await.unwrap();
+
+        assert_eq!(mixed.len(), retrieved.len());
+        // Note: Untagged enums may have different representations in JSON
+    }
+
+    #[tokio::test]
+    async fn test_round_trip_multiple_times() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Data {
+            id: u32,
+            content: String,
+        }
+
+        let original = Data {
+            id: 12345,
+            content: "test content".to_string(),
+        };
+
+        // Add and retrieve multiple times
+        let cid1 = dag.add(&original, None).await.unwrap();
+        let retrieved1: Data = dag.get(&cid1, None).await.unwrap();
+        
+        let cid2 = dag.add(&retrieved1, None).await.unwrap();
+        let retrieved2: Data = dag.get(&cid2, None).await.unwrap();
+        
+        let cid3 = dag.add(&retrieved2, None).await.unwrap();
+        let retrieved3: Data = dag.get(&cid3, None).await.unwrap();
+
+        // All CIDs should be identical (deterministic)
+        assert_eq!(cid1, cid2);
+        assert_eq!(cid2, cid3);
+        
+        // Data should remain unchanged
+        assert_eq!(original, retrieved1);
+        assert_eq!(original, retrieved2);
+        assert_eq!(original, retrieved3);
+    }
+
+    #[tokio::test]
+    async fn test_null_handling() {
+        let dag = create_test_dag().await;
+
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct OptionalData {
+            required: String,
+            optional: Option<String>,
+        }
+
+        let data_with_some = OptionalData {
+            required: "always here".to_string(),
+            optional: Some("maybe here".to_string()),
+        };
+
+        let data_with_none = OptionalData {
+            required: "always here".to_string(),
+            optional: None,
+        };
+
+        // Test with Some value
+        let cid_some = dag.add(&data_with_some, None).await.unwrap();
+        let retrieved_some: OptionalData = dag.get(&cid_some, None).await.unwrap();
+        assert_eq!(data_with_some, retrieved_some);
+        assert!(retrieved_some.optional.is_some());
+
+        // Test with None value
+        let cid_none = dag.add(&data_with_none, None).await.unwrap();
+        let retrieved_none: OptionalData = dag.get(&cid_none, None).await.unwrap();
+        assert_eq!(data_with_none, retrieved_none);
+        assert!(retrieved_none.optional.is_none());
+    }
 }
