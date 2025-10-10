@@ -4,6 +4,7 @@
 
 pub mod delegated_http_routing;
 pub mod http_gateway_routing;
+pub mod libp2p_routing;
 
 use async_trait::async_trait;
 use cid::Cid;
@@ -112,5 +113,9 @@ impl PeerRouting for Routers {
 pub fn routers(helia: Arc<dyn Helia>) -> Routers {
     Routers::new(helia)
 }
+
+// Re-export key types and functions
+pub use libp2p_routing::{libp2p_routing, Libp2pRouting};
+pub use http_gateway_routing::{http_gateway_routing, HTTPGatewayRouter, HTTPGatewayRoutingInit};
 
 // Tests have been moved to individual router module tests

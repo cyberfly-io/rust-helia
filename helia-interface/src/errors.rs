@@ -89,6 +89,14 @@ pub enum HeliaError {
     #[error("DNS error: {0}")]
     Dns(#[from] trust_dns_resolver::error::ResolveError),
 
+    /// Not found error
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// Operation not supported
+    #[error("Operation not supported: {0}")]
+    OperationNotSupported(String),
+
     /// Generic error with custom message
     #[error("Error: {message}")]
     Other { message: String },

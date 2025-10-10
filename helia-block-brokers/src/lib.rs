@@ -10,6 +10,10 @@ use cid::Cid;
 use helia_interface::HeliaError;
 use std::time::{Duration, Instant};
 
+// Re-export key types and functions
+pub use bitswap::{bitswap_broker, BitswapBroker};
+pub use trustless_gateway::{trustless_gateway, TrustlessGateway, TrustlessGatewayInit};
+
 pub type Result<T> = std::result::Result<T, HeliaError>;
 
 /// Options for retrieving blocks

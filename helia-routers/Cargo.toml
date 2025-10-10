@@ -15,6 +15,7 @@ helia-interface = { version = "0.1.2", path = "../helia-interface" }
 # Core async runtime
 async-trait.workspace = true
 tokio.workspace = true
+futures = "0.3"
 
 # Error handling
 thiserror.workspace = true

@@ -3,12 +3,15 @@
 //! This module provides a simple content router that returns HTTP gateway URLs
 //! as "providers". This allows using HTTP gateways as a fallback for content routing.
 
-use crate::{ContentRouting, ProviderInfo, RoutingError};
 use async_trait::async_trait;
 use cid::Cid;
+use futures::stream;
+use helia_interface::{
+    AwaitIterable, FindPeersOptions, FindProvidersOptions, GetOptions, HeliaError, PeerInfo,
+    ProvideOptions, Provider, PutOptions, Routing, RoutingRecord, TransportMethod,
+};
 use libp2p::{Multiaddr, PeerId};
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::debug;
 use url::Url;
 
@@ -51,9 +54,6 @@ impl HTTPGatewayRouter {
     /// Create a synthetic peer ID from a gateway URL
     fn gateway_to_peer_id(gateway: &Url) -> PeerId {
         // Create a deterministic peer ID from the gateway URL
-        // In a real implementation, this might use a hash of the URL
-        // For now, we'll create a simple synthetic peer ID
-
         // Use the URL host as a seed for the peer ID
         let host = gateway.host_str().unwrap_or("unknown");
         let hash = seahash::hash(host.as_bytes());
@@ -85,11 +85,30 @@ impl HTTPGatewayRouter {
         let multiaddr_str = format!("/dns4/{}/tcp/{}/{}", host, port, protocol);
         Multiaddr::from_str(&multiaddr_str).ok()
     }
+
+    /// Convert gateway info to Provider format
+    fn gateway_to_provider(&self, gateway: &Url) -> Option<Provider> {
+        let peer_id = Self::gateway_to_peer_id(gateway);
+        let addr = Self::gateway_to_multiaddr(gateway)?;
+
+        Some(Provider {
+            peer_info: PeerInfo {
+                id: peer_id,
+                multiaddrs: vec![addr],
+                protocols: vec!["http".to_string()],
+            },
+            transport_methods: vec![TransportMethod::Http],
+        })
+    }
 }
 
 #[async_trait]
-impl ContentRouting for HTTPGatewayRouter {
-    async fn find_providers(&self, cid: &Cid) -> Result<Vec<ProviderInfo>, RoutingError> {
+impl Routing for HTTPGatewayRouter {
+    async fn find_providers(
+        &self,
+        cid: &Cid,
+        _options: Option<FindProvidersOptions>,
+    ) -> Result<AwaitIterable<Provider>, HeliaError> {
         debug!(
             "HTTPGatewayRouter: Returning {} gateways as providers for {}",
             self.gateways.len(),
@@ -99,31 +118,60 @@ impl ContentRouting for HTTPGatewayRouter {
         let mut providers = Vec::new();
 
         for gateway in &self.gateways {
-            let peer_id = Self::gateway_to_peer_id(gateway);
-
-            let addrs = if let Some(addr) = Self::gateway_to_multiaddr(gateway) {
-                vec![addr]
-            } else {
-                // Fallback: create a simple multiaddr from the URL
-                vec![]
-            };
-
-            if !addrs.is_empty() {
-                providers.push(ProviderInfo { peer_id, addrs });
+            if let Some(provider) = self.gateway_to_provider(gateway) {
+                providers.push(provider);
             }
         }
 
         if providers.is_empty() {
-            return Err(RoutingError::ContentNotFound(*cid));
+            return Err(HeliaError::NotFound(format!(
+                "No valid gateway providers found for CID: {}",
+                cid
+            )));
         }
 
-        Ok(providers)
+        // Convert Vec to async stream
+        Ok(Box::pin(stream::iter(providers)))
     }
 
-    async fn provide(&self, _cid: &Cid) -> Result<(), RoutingError> {
+    async fn provide(&self, _cid: &Cid, _options: Option<ProvideOptions>) -> Result<(), HeliaError> {
         // HTTP gateways are read-only, we can't announce content
-        Err(RoutingError::RoutingFailed(
+        Err(HeliaError::OperationNotSupported(
             "HTTP gateway routing does not support content announcement".to_string(),
+        ))
+    }
+
+    async fn find_peers(
+        &self,
+        _peer_id: &PeerId,
+        _options: Option<FindPeersOptions>,
+    ) -> Result<AwaitIterable<PeerInfo>, HeliaError> {
+        // HTTP gateways don't support peer routing
+        Err(HeliaError::OperationNotSupported(
+            "HTTP gateway routing does not support peer discovery".to_string(),
+        ))
+    }
+
+    async fn get(
+        &self,
+        _key: &[u8],
+        _options: Option<GetOptions>,
+    ) -> Result<Option<RoutingRecord>, HeliaError> {
+        // HTTP gateways don't support DHT records
+        Err(HeliaError::OperationNotSupported(
+            "HTTP gateway routing does not support DHT record retrieval".to_string(),
+        ))
+    }
+
+    async fn put(
+        &self,
+        _key: &[u8],
+        _value: &[u8],
+        _options: Option<PutOptions>,
+    ) -> Result<(), HeliaError> {
+        // HTTP gateways don't support DHT records
+        Err(HeliaError::OperationNotSupported(
+            "HTTP gateway routing does not support DHT record storage".to_string(),
         ))
     }
 }
@@ -140,13 +188,14 @@ impl ContentRouting for HTTPGatewayRouter {
 ///     gateways: vec![Url::parse("https://ipfs.io").unwrap()],
 /// });
 /// ```
-pub fn http_gateway_routing(init: HTTPGatewayRoutingInit) -> Arc<dyn ContentRouting> {
-    Arc::new(HTTPGatewayRouter::new(init))
+pub fn http_gateway_routing(init: HTTPGatewayRoutingInit) -> Box<dyn Routing> {
+    Box::new(HTTPGatewayRouter::new(init))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
 
     #[tokio::test]
     async fn test_gateway_router_creation() {
@@ -159,11 +208,13 @@ mod tests {
         let router = http_gateway_routing(HTTPGatewayRoutingInit::default());
         let cid = Cid::default();
 
-        let providers = router.find_providers(&cid).await.unwrap();
-        assert_eq!(providers.len(), 3);
+        let mut providers = router.find_providers(&cid, None).await.unwrap();
+        let provider_vec: Vec<_> = providers.collect().await;
+        assert_eq!(provider_vec.len(), 3);
 
-        for provider in &providers {
-            assert!(!provider.addrs.is_empty());
+        for provider in &provider_vec {
+            assert!(!provider.peer_info.multiaddrs.is_empty());
+            assert_eq!(provider.transport_methods.len(), 1);
         }
     }
 
@@ -172,7 +223,7 @@ mod tests {
         let router = http_gateway_routing(HTTPGatewayRoutingInit::default());
         let cid = Cid::default();
 
-        let result = router.provide(&cid).await;
+        let result = router.provide(&cid, None).await;
         assert!(result.is_err());
     }
 
@@ -185,8 +236,31 @@ mod tests {
         });
 
         let cid = Cid::default();
-        let providers = router.find_providers(&cid).await.unwrap();
+        let mut providers = router.find_providers(&cid, None).await.unwrap();
+        let provider_vec: Vec<_> = providers.collect().await;
 
-        assert_eq!(providers.len(), 1);
+        assert_eq!(provider_vec.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_peer_routing_not_supported() {
+        let router = http_gateway_routing(HTTPGatewayRoutingInit::default());
+        let peer_id = PeerId::random();
+
+        let result = router.find_peers(&peer_id, None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_dht_operations_not_supported() {
+        let router = http_gateway_routing(HTTPGatewayRoutingInit::default());
+
+        // Test get
+        let get_result = router.get(b"test-key", None).await;
+        assert!(get_result.is_err());
+
+        // Test put
+        let put_result = router.put(b"test-key", b"test-value", None).await;
+        assert!(put_result.is_err());
     }
 }

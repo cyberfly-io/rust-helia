@@ -97,6 +97,33 @@ impl BlockBroker for BitswapBroker {
     }
 }
 
+/// Factory function to create a Bitswap block broker
+///
+/// This function creates a BlockBroker implementation that uses Bitswap
+/// for peer-to-peer block exchange.
+///
+/// # Arguments
+///
+/// * `bitswap` - The Bitswap coordinator instance to use
+///
+/// # Returns
+///
+/// A boxed BlockBroker trait object
+///
+/// # Examples
+///
+/// ```ignore
+/// use helia_block_brokers::bitswap::bitswap_broker;
+/// use helia_bitswap::Bitswap;
+/// use std::sync::Arc;
+///
+/// let bitswap = Bitswap::new(blockstore, config).await?;
+/// let broker = bitswap_broker(Arc::new(bitswap));
+/// ```
+pub fn bitswap_broker(bitswap: Arc<Bitswap>) -> Box<dyn BlockBroker> {
+    Box::new(BitswapBroker::new(bitswap))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
