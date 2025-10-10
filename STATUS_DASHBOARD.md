@@ -23,9 +23,9 @@
 | **helia-block-brokers** | ✅ Production | 100% | **32/32 Pass** | **Medium** |
 | **helia-mfs** | ✅ Production | 100% | **51/51 Pass** | **High** |
 | **helia-strings** | ✅ Production | 100% | **16/16 Pass** | **Low** |
-| **helia-http** | 🔴 Stub | 10% | None | High |
+| **helia-http** | � Needs Work | 75% | 0 tests | High |
 | **helia-dnslink** | 🔴 Stub | 10% | None | Low |
-| **helia-interop** | 🟢 Active | 87.5% | **7/8 Pass** | **Testing** |
+| **helia-interop** | ✅ Production | 100% | **48/48 Pass** | **Testing** |
 
 ---
 
