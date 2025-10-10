@@ -9,7 +9,7 @@ pub fn parse_ipfs(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
     if parts.is_empty() || parts[0] != "ipfs" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'ipfs' namespace, got: {}",
-            parts.get(0).unwrap_or(&"<empty>")
+            parts.first().unwrap_or(&"<empty>")
         )));
     }
 
@@ -45,7 +45,7 @@ pub fn parse_ipns(value: &str, answer: TxtRecord) -> Result<DnsLinkResult, DnsLi
     if parts.is_empty() || parts[0] != "ipns" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'ipns' namespace, got: {}",
-            parts.get(0).unwrap_or(&"<empty>")
+            parts.first().unwrap_or(&"<empty>")
         )));
     }
 
@@ -82,7 +82,7 @@ pub fn extract_dnslink_domain(value: &str) -> Result<String, DnsLinkError> {
     if parts.is_empty() || parts[0] != "dnslink" {
         return Err(DnsLinkError::InvalidNamespace(format!(
             "Expected 'dnslink' namespace, got: {}",
-            parts.get(0).unwrap_or(&"<empty>")
+            parts.first().unwrap_or(&"<empty>")
         )));
     }
 
