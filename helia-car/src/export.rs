@@ -4,6 +4,9 @@ use cid::Cid;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Export strategies for CAR files
+/// 
+/// These strategies are part of the public API and may be used in future implementations
+#[allow(dead_code)]
 pub trait ExportStrategy {
     /// Determine which blocks to include in the export
     fn select_blocks(
@@ -15,6 +18,7 @@ pub trait ExportStrategy {
 }
 
 /// Simple export strategy that includes all available blocks
+#[allow(dead_code)]
 pub struct SimpleExportStrategy;
 
 impl ExportStrategy for SimpleExportStrategy {
@@ -73,10 +77,12 @@ impl ExportStrategy for SimpleExportStrategy {
 }
 
 /// Filtered export strategy that only includes specific CIDs
+#[allow(dead_code)]
 pub struct FilteredExportStrategy {
     allowed_cids: HashSet<Cid>,
 }
 
+#[allow(dead_code)]
 impl FilteredExportStrategy {
     /// Create a new filtered export strategy
     pub fn new(allowed_cids: HashSet<Cid>) -> Self {

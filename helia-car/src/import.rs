@@ -4,6 +4,9 @@ use helia_interface::HeliaError;
 use std::collections::HashSet;
 
 /// Import strategies for CAR files
+/// 
+/// These strategies are part of the public API and may be used in future implementations
+#[allow(dead_code)]
 pub trait ImportStrategy {
     /// Validate and filter blocks during import
     fn validate_block(&self, block: &CarBlock, options: &ImportOptions) -> Result<bool>;
@@ -13,6 +16,7 @@ pub trait ImportStrategy {
 }
 
 /// Simple import strategy that validates basic block integrity
+#[allow(dead_code)]
 pub struct SimpleImportStrategy;
 
 impl ImportStrategy for SimpleImportStrategy {
@@ -37,10 +41,12 @@ impl ImportStrategy for SimpleImportStrategy {
 }
 
 /// Filtered import strategy that only allows specific CIDs
+#[allow(dead_code)]
 pub struct FilteredImportStrategy {
     allowed_cids: HashSet<Cid>,
 }
 
+#[allow(dead_code)]
 impl FilteredImportStrategy {
     /// Create a new filtered import strategy
     pub fn new(allowed_cids: HashSet<Cid>) -> Self {
@@ -76,10 +82,12 @@ impl ImportStrategy for FilteredImportStrategy {
 }
 
 /// Validating import strategy with comprehensive block verification
+#[allow(dead_code)]
 pub struct ValidatingImportStrategy {
     max_block_size: usize,
 }
 
+#[allow(dead_code)]
 impl ValidatingImportStrategy {
     /// Create a new validating import strategy
     pub fn new(max_block_size: usize) -> Self {
@@ -113,6 +121,7 @@ impl ImportStrategy for ValidatingImportStrategy {
 }
 
 /// Import context for tracking import progress
+#[allow(dead_code)]
 pub struct ImportContext {
     pub imported_count: usize,
     pub skipped_count: usize,
@@ -120,6 +129,7 @@ pub struct ImportContext {
     pub imported_cids: Vec<Cid>,
 }
 
+#[allow(dead_code)]
 impl ImportContext {
     /// Create a new import context
     pub fn new() -> Self {
