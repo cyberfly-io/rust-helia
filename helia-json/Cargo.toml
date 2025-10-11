@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "JSON support for Helia IPFS nodes"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.3", path = "../helia-interface" }
 
 # Core async runtime and utilities  
 async-trait.workspace = true
@@ -36,6 +36,6 @@ bytes.workspace = true
 tokio.workspace = true
 futures.workspace = true
 rust-helia = { version = "0.1.2", path = "../rust-helia" }
-helia-utils = { version = "0.1.2", path = "../helia-utils" }
-helia-bitswap = { version = "0.1.2", path = "../helia-bitswap" }
+helia-utils = { version = "0.1.3", path = "../helia-utils" }
+helia-bitswap = { version = "0.1.3", path = "../helia-bitswap" }
 libp2p = { workspace = true, features = ["pnet"] }

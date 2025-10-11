@@ -9,7 +9,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use helia::create_helia;
+//! use rust_helia::create_helia;
 //! use cid::Cid;
 //!
 //! #[tokio::main]

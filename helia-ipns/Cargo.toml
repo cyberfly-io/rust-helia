@@ -10,8 +10,8 @@ rust-version.workspace = true
 description = "IPNS (InterPlanetary Name System) implementation for Helia"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
-helia-dnslink = { version = "0.1.2", path = "../helia-dnslink" }
+helia-interface = { version = "0.1.3", path = "../helia-interface" }
+helia-dnslink = { version = "0.1.3", path = "../helia-dnslink" }
 
 # Core async runtime
 async-trait.workspace = true

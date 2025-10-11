@@ -10,8 +10,8 @@ rust-version.workspace = true
 description = "Mutable File System (MFS) implementation for Helia IPFS nodes"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
-helia-unixfs = { version = "0.1.2", path = "../helia-unixfs" }
+helia-interface = { version = "0.1.3", path = "../helia-interface" }
+helia-unixfs = { version = "0.1.3", path = "../helia-unixfs" }
 
 # Core async runtime and utilities
 async-trait.workspace = true

@@ -161,7 +161,7 @@ helia/src/
 
 **Target API:**
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_block_brokers::{trustless_gateway, bitswap};
 use helia_routers::{delegated_http_routing, http_gateway_routing};
 

@@ -10,7 +10,7 @@ rust-version.workspace = true
 description = "DNSLink resolution for Helia"
 
 [dependencies]
-helia-interface = { version = "0.1.2", path = "../helia-interface" }
+helia-interface = { version = "0.1.3", path = "../helia-interface" }
 libp2p-identity = { version = "0.2", features = ["peerid"] }
 
 # Core async runtime

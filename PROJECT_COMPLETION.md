@@ -218,7 +218,7 @@
 
 ### Content-Addressed Storage
 ```rust
-use helia::create_helia;
+use rust_helia::create_helia;
 use helia_unixfs::UnixFS;
 
 let helia = create_helia().await?;
