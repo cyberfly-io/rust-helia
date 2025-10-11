@@ -11,8 +11,8 @@ description = "An implementation of IPFS in Rust"
 
 [dependencies]
 # Helia crates
-helia-interface = { version = "0.1.3", path = "../helia-interface" }
-helia-utils = { version = "0.1.3", path = "../helia-utils" }
+helia-interface = { version = "0.1.4", path = "../helia-interface" }
+helia-utils = { version = "0.1.4", path = "../helia-utils" }
 
 # Core async and future utilities
 async-trait.workspace = true
@@ -57,7 +57,7 @@ tokio-test.workspace = true
 helia-unixfs = { version = "0.1.3", path = "../helia-unixfs" }
 helia-dag-cbor = { version = "0.1.3", path = "../helia-dag-cbor" }
 helia-dag-json = { version = "0.1.3", path = "../helia-dag-json" }
-helia-json = { version = "0.1.3", path = "../helia-json" }
+helia-json = { version = "0.1.4", path = "../helia-json" }
 helia-mfs = { version = "0.1.3", path = "../helia-mfs" }
 helia-car = { version = "0.1.3", path = "../helia-car" }
 helia-routers = { version = "0.1.3", path = "../helia-routers" }
