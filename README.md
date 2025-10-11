@@ -1,13 +1,8 @@
 # Helia Rust Implementation
 
-[![Rust](https://img.shields.io/badge/rust```toml
-[dependencies]
-rust-helia = "0.1.3"
-helia-unixfs = "0.1.3"
-tokio = { version = "1", features = ["full"] }
-```2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/badge/crates.io-v0.1.2-blue)](https://crates.io/crates/helia-interface)
+[![Crates.io](https://img.shields.io/badge/crates.io-v0.1.3-blue)](https://crates.io/crates/rust-helia)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Tests](https://img.shields.io/badge/tests-348%20passing-brightgreen.svg)]()
 [![Completion](https://img.shields.io/badge/completion-100%25-brightgreen.svg)]()
@@ -42,7 +37,7 @@ A complete, production-ready Rust implementation of [Helia](https://github.com/i
 ### Module Overview
 
 **Core Modules:**
-- `helia` - Main entry point and coordination
+- `rust-helia` - Main entry point and coordination
 - `helia-interface` - Core traits and types
 - `helia-utils` - Shared utilities and helpers
 
@@ -389,11 +384,12 @@ cargo run --example
 - [x] 8 working examples
 
 ### Phase 3: Publishing & Documentation ✅ IN PROGRESS
-- [x] helia-interface v0.1.2 published to crates.io
-- [x] helia-utils v0.1.2 published to crates.io
+- [x] helia-interface v0.1.3 published to crates.io
+- [x] helia-utils v0.1.3 published to crates.io
 - [x] Complete API documentation
 - [x] Usage guides and examples
-- [ ] Publish remaining 16 packages to crates.io
+- [x] Published 11/17 packages to crates.io (helia-interface, helia-car, helia-dag-cbor, helia-dag-json, helia-interop, helia-strings, helia-dnslink, helia-http, helia-ipns, helia-bitswap, helia-utils)
+- [ ] Publish remaining 6 packages to crates.io (helia-routers, helia-json, helia-unixfs, helia-mfs, helia-block-brokers, rust-helia)
 - [ ] CI/CD pipeline setup
 
 ### Phase 4: Network Layer � PLANNED
@@ -477,10 +473,11 @@ This project is dual-licensed under MIT and Apache 2.0. See [LICENSE-MIT](LICENS
 
 ## 📊 Project Stats
 
-- **18 Packages**: Complete modular architecture
-- **8 Examples**: Comprehensive usage demonstrations
-- **Version**: 0.1.2 across all packages
-- **Published**: 2/18 packages on crates.io (more coming soon!)
+- **17 Packages**: Complete modular architecture (rust-helia + 16 helia-* modules)
+- **9 Examples**: Comprehensive usage demonstrations
+- **Version**: 0.1.3 across all packages
+- **Published**: 11/17 packages on crates.io (6 remaining)
+- **Tests**: 348 automated tests, all passing
 - **Language**: 100% Rust
 - **License**: Dual MIT/Apache-2.0
 
