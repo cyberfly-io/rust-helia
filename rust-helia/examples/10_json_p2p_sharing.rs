@@ -8,7 +8,7 @@
 //! Terminal 2: cargo run --example 10_json_p2p_sharing -- get <CID>
 
 use helia_interface::Helia;
-use helia_json::{json, JsonInterface};
+use helia_json::{json, JsonError, JsonInterface};
 use helia_utils::{BlockstoreConfig, HeliaConfig};
 use rust_helia::create_helia;
 use serde::{Deserialize, Serialize};
@@ -149,7 +149,19 @@ async fn run_get(cid_str: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     // Get JSON - just like JS: const obj = await j.get(cid)
     println!("⏳ Fetching from network (may take a few seconds for peer discovery)...\n");
-    let user: UserData = j.get(&cid, None).await?;
+    let user: UserData = match j.get(&cid, None).await {
+        Ok(data) => data,
+        Err(JsonError::Retrieval(msg)) => {
+            eprintln!("❌ Retrieval failed: {}", msg);
+            eprintln!("\nTroubleshooting tips:");
+            eprintln!("  • Double-check the CID exactly matches the one printed by the store node");
+            eprintln!("  • Make sure the store node is still running and reachable (mDNS takes ~5s)");
+            eprintln!("  • Wait a few more seconds and try again (the provider may still be announcing)");
+            eprintln!("  • Verify both terminals are on the same local network for mDNS discovery\n");
+            return Ok(());
+        }
+        Err(err) => return Err(Box::new(err)),
+    };
 
     println!("✅ JSON data retrieved successfully!\n");
     println!("📄 Data:");

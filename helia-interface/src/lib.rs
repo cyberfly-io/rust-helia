@@ -30,7 +30,7 @@ use cid::Cid;
 use futures::Stream;
 use libp2p::Swarm;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 use trust_dns_resolver::TokioAsyncResolver;
 
 pub use blocks::*;
@@ -139,7 +139,14 @@ pub enum HeliaEvent {
     Start,
     /// Node has stopped
     Stop,
+    /// Garbage collection started
+    GcStarted,
+    /// Garbage collection completed
+    GcCompleted,
 }
+
+/// Type alias for event receiver
+pub type HeliaEventReceiver = broadcast::Receiver<HeliaEvent>;
 
 /// Garbage collection options
 #[derive(Debug)]
@@ -225,6 +232,31 @@ pub trait Helia: Send + Sync {
 
     /// Optional metrics collector
     fn metrics(&self) -> Option<&dyn Metrics>;
+
+    /// Subscribe to events emitted by this Helia node
+    /// 
+    /// Returns a receiver that will receive all events emitted by the node.
+    /// Multiple subscribers can listen to events simultaneously.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// use helia_interface::{Helia, HeliaEvent};
+    /// 
+    /// let mut events_rx = helia.subscribe_events();
+    /// 
+    /// tokio::spawn(async move {
+    ///     while let Ok(event) = events_rx.recv().await {
+    ///         match event {
+    ///             HeliaEvent::Start => println!("Helia started"),
+    ///             HeliaEvent::Stop => println!("Helia stopped"),
+    ///             HeliaEvent::GcStarted => println!("GC started"),
+    ///             HeliaEvent::GcCompleted => println!("GC completed"),
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    fn subscribe_events(&self) -> HeliaEventReceiver;
 
     /// Start the Helia node
     async fn start(&self) -> Result<(), HeliaError>;

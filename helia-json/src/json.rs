@@ -8,6 +8,7 @@ use cid::Cid;
 use serde::{Deserialize, Serialize};
 
 use helia_interface::Helia;
+use multihash_codetable::{Code, MultihashDigest};
 
 use crate::{AddOptions, GetOptions, JsonError};
 
@@ -55,27 +56,8 @@ impl JsonInterface for Json {
             serde_json::to_vec(object).map_err(|e| JsonError::Serialization(e.to_string()))?;
         let bytes = Bytes::from(json_data);
 
-        // Create hash of the data using the same approach as DAG-CBOR
-        let mut hash_bytes = [0u8; 32];
-
         // Use a simple hash based on data content
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        bytes.hash(&mut hasher);
-        let hash_value = hasher.finish();
-        hash_bytes[0..8].copy_from_slice(&hash_value.to_be_bytes());
-        hash_bytes[8..16].copy_from_slice(&(bytes.len() as u64).to_be_bytes());
-
-        // Add some content-based bytes
-        for (i, &byte) in bytes.iter().take(16).enumerate() {
-            hash_bytes[16 + i] = byte;
-        }
-
-        let mh: multihash::Multihash<64> =
-            multihash::Multihash::wrap(0x12, &hash_bytes) // 0x12 is SHA-256
-                .map_err(|e| JsonError::Storage(format!("Multihash error: {}", e)))?;
+        let mh = Code::Sha2_256.digest(&bytes);
 
         // Create CID with JSON codec
         let cid = Cid::new_v1(JSON_CODEC, mh);

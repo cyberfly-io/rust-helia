@@ -25,6 +25,7 @@ use unsigned_varint::decode as varint_decode;
 
 use helia_interface::pins::Pin as HeliaPin;
 use helia_interface::*;
+use tokio::sync::broadcast;
 
 use crate::libp2p_behaviour::HeliaBehaviourEvent;
 use crate::{
@@ -56,6 +57,8 @@ pub struct HeliaImpl {
             >,
         >,
     >,
+    /// Event broadcaster for Helia events
+    event_tx: broadcast::Sender<HeliaEvent>,
 }
 
 impl HeliaImpl {
@@ -113,6 +116,9 @@ impl HeliaImpl {
 
         logger.info("Helia node initialized with Bitswap P2P support");
 
+        // Create event broadcaster with a buffer size of 100
+        let (event_tx, _) = broadcast::channel(100);
+
         Ok(Self {
             libp2p,
             blockstore,
@@ -126,6 +132,7 @@ impl HeliaImpl {
             event_loop_handle: Arc::new(Mutex::new(None)),
             bitswap,
             outbound_rx: Arc::new(Mutex::new(Some(outbound_rx))),
+            event_tx,
         })
     }
 }
@@ -158,6 +165,10 @@ impl Helia for HeliaImpl {
 
     fn metrics(&self) -> Option<&dyn Metrics> {
         self.metrics.as_ref().map(|m| m.as_ref())
+    }
+
+    fn subscribe_events(&self) -> HeliaEventReceiver {
+        self.event_tx.subscribe()
     }
 
     async fn start(&self) -> Result<(), HeliaError> {
@@ -209,6 +220,10 @@ impl Helia for HeliaImpl {
 
         self.logger.info("Helia node started");
         *started = true;
+        
+        // Emit start event (ignore errors if no subscribers)
+        let _ = self.event_tx.send(HeliaEvent::Start);
+        
         Ok(())
     }
 
@@ -232,11 +247,22 @@ impl Helia for HeliaImpl {
 
         self.logger.info("Helia node stopped");
         *started = false;
+        
+        // Emit stop event (ignore errors if no subscribers)
+        let _ = self.event_tx.send(HeliaEvent::Stop);
+        
         Ok(())
     }
     async fn gc(&self, _options: Option<GcOptions>) -> Result<(), HeliaError> {
+        // Emit GC started event
+        let _ = self.event_tx.send(HeliaEvent::GcStarted);
+        
         // TODO: Implement garbage collection
         self.logger.info("Garbage collection not yet implemented");
+        
+        // Emit GC completed event
+        let _ = self.event_tx.send(HeliaEvent::GcCompleted);
+        
         Ok(())
     }
 

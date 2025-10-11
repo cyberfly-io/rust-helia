@@ -252,9 +252,10 @@ use tokio::sync::RwLock;
 use trust_dns_resolver::TokioAsyncResolver;
 
 use helia_interface::{
-    Blocks, Codec, ComponentLogger, Datastore, GcOptions, Hasher, Helia, HeliaError, Metrics, Pins,
+    Blocks, Codec, ComponentLogger, Datastore, GcOptions, Hasher, Helia, HeliaError, HeliaEventReceiver, Metrics, Pins,
     Routing,
 };
+use tokio::sync::broadcast;
 
 /// Configuration for HTTP gateway access
 #[derive(Debug, Clone)]
@@ -606,6 +607,8 @@ pub struct HeliaHttp {
     routing: Arc<HttpRouting>,
     logger: Arc<SimpleLogger>,
     dns: TokioAsyncResolver,
+    /// Event broadcaster for Helia events
+    event_tx: broadcast::Sender<helia_interface::HeliaEvent>,
 }
 
 impl HeliaHttp {
@@ -614,6 +617,8 @@ impl HeliaHttp {
     }
 
     pub fn new_with_config(config: GatewayConfig) -> Self {
+        let (event_tx, _) = broadcast::channel(100);
+        
         Self {
             blockstore: Arc::new(HttpBlocks::new(config)),
             datastore: Arc::new(MemoryDatastore::new()),
@@ -621,6 +626,7 @@ impl HeliaHttp {
             routing: Arc::new(HttpRouting),
             logger: Arc::new(SimpleLogger),
             dns: TokioAsyncResolver::tokio_from_system_conf().unwrap(),
+            event_tx,
         }
     }
 }
@@ -661,17 +667,26 @@ impl Helia for HeliaHttp {
         None
     }
 
+    fn subscribe_events(&self) -> HeliaEventReceiver {
+        self.event_tx.subscribe()
+    }
+
     async fn start(&self) -> Result<(), HeliaError> {
         self.logger.info("Starting HTTP-only Helia node");
+        let _ = self.event_tx.send(helia_interface::HeliaEvent::Start);
         Ok(())
     }
 
     async fn stop(&self) -> Result<(), HeliaError> {
         self.logger.info("Stopping HTTP-only Helia node");
+        let _ = self.event_tx.send(helia_interface::HeliaEvent::Stop);
         Ok(())
     }
 
     async fn gc(&self, _options: Option<GcOptions>) -> Result<(), HeliaError> {
+        let _ = self.event_tx.send(helia_interface::HeliaEvent::GcStarted);
+        // HTTP-only client has no local storage to collect
+        let _ = self.event_tx.send(helia_interface::HeliaEvent::GcCompleted);
         Ok(())
     }
 
