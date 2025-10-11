@@ -45,7 +45,6 @@ prost-build = "0.12"
 
 [dev-dependencies]
 tokio-test = "0.4"
-rust-helia = { version = "0.1.2", path = "../rust-helia" }
 helia-utils = { version = "0.1.3", path = "../helia-utils" }
 helia-bitswap = { version = "0.1.3", path = "../helia-bitswap" }
 libp2p = { workspace = true, features = ["pnet"] }

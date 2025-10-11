@@ -80,17 +80,17 @@ publish_package() {
     
     echo -e "${YELLOW}✓ Version $version not found, proceeding with publish...${NC}"
     
-    # Verify package
+    # Verify package (use --allow-dirty for uncommitted changes)
     echo -e "${YELLOW}Verifying package...${NC}"
-    if ! cargo package --no-verify; then
+    if ! cargo package --no-verify --allow-dirty; then
         echo -e "${RED}Failed to package $package${NC}"
         cd ..
         return 1
     fi
     
-    # Publish
+    # Publish (use --no-verify to skip tests which may have circular dev-dependencies)
     echo -e "${YELLOW}Publishing to crates.io...${NC}"
-    if cargo publish; then
+    if cargo publish --no-verify --allow-dirty; then
         echo -e "${GREEN}✓ Successfully published $package v$version${NC}"
         cd ..
         return 0
@@ -108,48 +108,80 @@ echo ""
 echo -e "${GREEN}Starting publication process...${NC}"
 echo ""
 
-# Phase 1: Core Interface
+# Phase 1: Core Interface (no internal dependencies)
 echo -e "${BLUE}═══ PHASE 1: Core Interface ═══${NC}"
 publish_package "helia-interface" || {
     echo -e "${YELLOW}Warning: Failed to publish helia-interface, continuing...${NC}"
     cd "$ROOT_DIR"
 }
 
-# Phase 2: Utilities
-echo -e "${BLUE}═══ PHASE 2: Utilities ═══${NC}"
-publish_package "helia-utils" || {
-    echo -e "${YELLOW}Warning: Failed to publish helia-utils, continuing...${NC}"
-    cd "$ROOT_DIR"
-}
-
-# Phase 3: Extensions
-echo -e "${BLUE}═══ PHASE 3: Extensions ═══${NC}"
-EXTENSIONS=(
-    "helia-bitswap"
-    "helia-block-brokers"
+# Phase 2: Base Layer (depends on helia-interface only - excluding bitswap)
+echo -e "${BLUE}═══ PHASE 2: Base Layer ═══${NC}"
+PHASE2_PACKAGES=(
     "helia-car"
     "helia-dag-cbor"
     "helia-dag-json"
     "helia-dnslink"
     "helia-http"
     "helia-interop"
-    "helia-ipns"
-    "helia-json"
-    "helia-mfs"
-    "helia-routers"
     "helia-strings"
-    "helia-unixfs"
 )
 
-for pkg in "${EXTENSIONS[@]}"; do
+for pkg in "${PHASE2_PACKAGES[@]}"; do
     publish_package "$pkg" || {
         echo -e "${YELLOW}Warning: Failed to publish $pkg, continuing...${NC}"
         cd "$ROOT_DIR"
     }
 done
 
-# Phase 4: Main Package
-echo -e "${BLUE}═══ PHASE 4: Main Package ═══${NC}"
+# Phase 3: Circular Dependencies (bitswap + utils)
+# Note: These have circular dev-dependencies, published with --no-verify
+echo -e "${BLUE}═══ PHASE 3: Circular Dependencies (Bitswap + Utils) ═══${NC}"
+echo -e "${YELLOW}Note: helia-bitswap and helia-utils have circular dev-dependencies${NC}"
+echo -e "${YELLOW}Publishing with --no-verify to skip tests during publish${NC}"
+
+publish_package "helia-bitswap" || {
+    echo -e "${YELLOW}Warning: Failed to publish helia-bitswap, continuing...${NC}"
+    cd "$ROOT_DIR"
+}
+
+publish_package "helia-utils" || {
+    echo -e "${YELLOW}Warning: Failed to publish helia-utils, continuing...${NC}"
+    cd "$ROOT_DIR"
+}
+
+# Phase 4: Complex Modules (depends on utils/bitswap)
+echo -e "${BLUE}═══ PHASE 4: Complex Modules ═══${NC}"
+PHASE4_PACKAGES=(
+    "helia-routers"
+    "helia-json"
+    "helia-unixfs"
+)
+
+for pkg in "${PHASE4_PACKAGES[@]}"; do
+    publish_package "$pkg" || {
+        echo -e "${YELLOW}Warning: Failed to publish $pkg, continuing...${NC}"
+        cd "$ROOT_DIR"
+    }
+done
+
+# Phase 5: Higher-Level Modules
+echo -e "${BLUE}═══ PHASE 5: Higher-Level Modules ═══${NC}"
+PHASE5_PACKAGES=(
+    "helia-mfs"
+    "helia-ipns"
+    "helia-block-brokers"
+)
+
+for pkg in "${PHASE5_PACKAGES[@]}"; do
+    publish_package "$pkg" || {
+        echo -e "${YELLOW}Warning: Failed to publish $pkg, continuing...${NC}"
+        cd "$ROOT_DIR"
+    }
+done
+
+# Phase 6: Main Package
+echo -e "${BLUE}═══ PHASE 6: Main Package ═══${NC}"
 publish_package "rust-helia" || {
     echo -e "${YELLOW}Warning: Failed to publish rust-helia${NC}"
     cd "$ROOT_DIR"
